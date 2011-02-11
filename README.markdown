@@ -5,6 +5,12 @@ SceneJS-PyCollada is a small library / command-line utility for translating Coll
 JSON formatted scenes for use by SceneJS. It uses PyCollada as its Collada
 parser, hence the choice of name.
 
+Licensing
+=========
+
+SceneJS-PyCollada is dual licensed under the MIT license and GPL version 2.0. Please refer to the files under licenses/ for more information.
+PyCollada is licensed under a BSD-style license. Please see pycollada/COPYING for more information
+
 Supported features
 ==================
 

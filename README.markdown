@@ -1,0 +1,33 @@
+# SceneJS-PyCollada
+
+SceneJS-PyCollada is a small library / command-line utility for translating Collada files into
+JSON formatted scenes for use by SceneJS. It uses PyCollada as its Collada
+parser, hence the choice of name.
+
+# Supported features
+
+* None so far!
+
+# Building
+
+TODO: ...
+
+# Resources
+
+For more information see the SceneJS website and wiki, or to discuss the project visit the google group.
+
+GitHub project:
+https://github.com/xeolabs/scenejs-pycollada
+
+Wiki page:
+http://scenejs.wikispaces.com/scenejs-pycollada
+
+Google group:
+http://groups.google.com/group/scenejs
+
+PyCollada home:
+http://collada.in4lines.com/
+
+PyCollada: 
+https://github.com/pycollada/pycollada
+

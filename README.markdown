@@ -12,6 +12,12 @@ parser, hence the choice of name.
 
 TODO: ...
 
+# Updating pycollada
+
+PyCollada has been added to the project as a git submodule. To fetch the latest version of pycollada, you can use the following git command in the root directory of scenejs-pycollada.
+
+git submodule update
+
 # Resources
 
 For more information see the SceneJS website and wiki, or to discuss the project visit the google group.

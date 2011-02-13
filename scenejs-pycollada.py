@@ -5,14 +5,17 @@
 import collada
 import sys
 import getopt
+import os.path
+from translator import translate
 
 def main(argv):
+    # Get the command-line options given to the program
     try:                                
         opts, args = getopt.getopt(argv, "hvd", ["help", "verbose"]) 
     except getopt.GetoptError:           
         usage()                          
         sys.exit(2)
-
+    
     for opt, arg in opts:
         if opt in ("-h", "--help"):
             print "Translate a Collada file to a JSON formatted SceneJS file"
@@ -30,18 +33,18 @@ def main(argv):
         usage();
         sys.exit(2);
     
+    # Load and translate each file specified
     for filename in args:
+        # Check whether the file exists and try to load it into a collada object
+        if not os.path.isfile(filename):
+            print "'" + filename + "' is not a valid file path."
+            sys.exit(2);
         colladaObj = collada.Collada(filename, ignore=[collada.DaeUnsupportedError])
-        for geom in colladaObj.scene.objects('geometry'):
-            for prim in geom.primitives():
-                if type(prim) is collada.triangleset.BoundTriangleSet:
-                    for tri in prim.triangles():
-                        print tri.vertices
-                if type(prim) is collada.polylist.BoundPolygonList:
-                    for poly in prim.polygons():
-                        for tri in poly.triangles():
-                            print tri.vertices
-
+        
+        # Create an output file write the SceneJS scene to
+        basePath = os.path.splitext(filename)[0]
+        outputFile = open(basePath + ".json","w")
+        translate(outputFile, colladaObj)
 
 def usage():
     print "Usage: "

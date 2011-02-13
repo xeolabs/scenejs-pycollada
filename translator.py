@@ -20,7 +20,7 @@ def translate(outputStream, colladaObj):
 
     for geom in colladaObj.scene.objects('geometry'):
         jsGeom = translate_geometry(geom)
-        print jsGeom
+        outputStream.write(jsGeom)
 
 def translate_geometry(geom):
     """

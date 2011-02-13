@@ -7,6 +7,7 @@ import sys
 import getopt
 import os.path
 from translator import translate
+from stream import ScenejsJsonStream
 
 def main(argv):
     # Get the command-line options given to the program
@@ -44,7 +45,7 @@ def main(argv):
         # Create an output file write the SceneJS scene to
         basePath = os.path.splitext(filename)[0]
         outputFile = open(basePath + ".json","w")
-        translate(outputFile, colladaObj)
+        translate(ScenejsJsonStream(outputFile), colladaObj)
 
 def usage():
     print "Usage: "

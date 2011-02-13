@@ -26,16 +26,22 @@ def main(argv):
             _verbose = 1
 
     if not args:
-      print "No input files specified"
-      usage();
-      sys.exit(2);
+        print "No input files specified"
+        usage();
+        sys.exit(2);
     
     for filename in args:
-      colladaObj = collada.Collada(filename, ignore=[collada.DaeUnsupportedError])
-      for geom in col.scene.objects('geometry'):
-        for prim in geom.primitives():
-          for tri in prim.triangles():
-            print tri.vertices
+        colladaObj = collada.Collada(filename, ignore=[collada.DaeUnsupportedError])
+        for geom in colladaObj.scene.objects('geometry'):
+            for prim in geom.primitives():
+                if type(prim) is collada.triangleset.BoundTriangleSet:
+                    for tri in prim.triangles():
+                        print tri.vertices
+                if type(prim) is collada.polylist.BoundPolygonList:
+                    for poly in prim.polygons():
+                        for tri in poly.triangles():
+                            print tri.vertices
+
 
 def usage():
     print "Usage: "

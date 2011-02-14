@@ -21,7 +21,7 @@ def generate_html_head(title):
   <!-- Resources -->\n\
 \n"
 
-def generate_html_body():
+def generate_html_body(sceneId=None):
     return \
 "</head>\n\
 <body>\n\
@@ -31,7 +31,7 @@ def generate_html_body():
             <p>This application requires a browser that supports the<a href='http://www.w3.org/html/wg/html5/'>HTML5</a>&lt;canvas&gt; feature.</p>\n\
         </canvas>\n\
     </div>\n\
-    <script type='text/javascript'>\n\
+    <script type='text/javascript'>\n" + ("\
         SceneJS.createNode({\n\
             type: 'scene',\n\
             id: 'sampleScene',\n\
@@ -40,8 +40,8 @@ def generate_html_body():
             nodes: [\n\
                 // Add your nodes here...\n\
             ]\n\
-        });\n\
-        SceneJS.withNode('sampleScene').render();\n\
+        });\n" if not sceneId else "") + "\
+        SceneJS.withNode('" + (sceneId if sceneId else "sampleScene") + "').render();\n\
    </script>\n\
 </body>\n\
 </html>"

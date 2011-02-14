@@ -10,20 +10,15 @@ def generate_html_head(title):
       " + title + "\n\
 -->\n\
 <head>\n\
-  <meta charset='utf-8' />\n\
-  <title>"+ title + "</title>\n\
+    <meta charset='utf-8' />\n\
+    <title>"+ title + "</title>\n\
 \n\
-  <!-- Framework -->\n\
+    <!-- Framework -->\n\
 \n\
-  <!--<script type='text/javascript' src='scenejs.min.js'></script>-->\n\
-  <script type='text/javascript' src='scenejs.js'></script>\n\
+    <!--<script type='text/javascript' src='scenejs.min.js'></script>-->\n\
+    <script type='text/javascript' src='scenejs.js'></script>\n\
 \n\
-  <!-- Resources -->\n\
-\n"
-
-def generate_html_body(sceneId=None):
-    return \
-"</head>\n\
+</head>\n\
 <body>\n\
     <div id='scenejsLog'></div>\n\
     <div id='content'>\n\
@@ -31,6 +26,12 @@ def generate_html_body(sceneId=None):
             <p>This application requires a browser that supports the<a href='http://www.w3.org/html/wg/html5/'>HTML5</a>&lt;canvas&gt; feature.</p>\n\
         </canvas>\n\
     </div>\n\
+\n\
+    <!-- Resources -->\n\
+\n"
+
+def generate_html_body(sceneId=None):
+    return "\
     <script type='text/javascript'>\n" + ("\
         SceneJS.createNode({\n\
             type: 'scene',\n\
@@ -42,6 +43,6 @@ def generate_html_body(sceneId=None):
             ]\n\
         });\n" if not sceneId else "") + "\
         SceneJS.withNode('" + (sceneId if sceneId else "sampleScene") + "').render();\n\
-   </script>\n\
+    </script>\n\
 </body>\n\
 </html>"

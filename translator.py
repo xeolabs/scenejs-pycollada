@@ -52,7 +52,7 @@ def translate_material(mat):
   print "Todo: Translate material"
 
 """
-def hashPrimitive(prim)
+def _hashPrimitive(prim)
     hash = ""
     if prim.material
         hash += prim.material.id
@@ -96,6 +96,37 @@ def translate_geometry(geom):
                 print "Warning: '" + type(prim) + "' geometry type is not yet supported by the translator"
     return jsGeom
 
-def translate_scene(scene):
-  print "Todo: Translate scene"
+def _translate_scene_nodes(nodes):
+    jsNodes = []
+    for node in nodes:
+        if type(node) is collada.scene.MaterialNode:
+            print "Material Node!"
+        elif type(node) is collada.scene.GeometryNode:
+            jsNodes.append({ 'type': 'instance', 'target': node.geometry.id })
+        elif type(node) is collada.scene.TransformNode:
+            if node.nodes:
+                jsNodes.append({ 
+                    'type': 'matrix', 
+                    'elements': [element for row in node.matrix for element in row],
+                    'nodes': _translate_scene_nodes(node.nodes) 
+                })
+        elif type(node) is collada.scene.ControllerNode:
+            print "Controller Node!"
+        elif type(node) is collada.scene.CameraNode:
+            print "Camera Node!"
+        elif type(node) is collada.scene.LightNode:
+            print "Light Node!"
+        elif type(node) is collada.scene.ExtraNode:
+            print "Extra Node!"
+        else:
+            print "Unknown node"
+    return jsNodes
 
+def translate_scene(scene):
+    return {
+        'type': 'scene',
+        'id': scene.id,
+        'canvasId': 'scenejsCanvas',
+        'loggingElementId': 'scenejsLog',
+        'nodes': _translate_scene_nodes(scene.nodes)
+    }

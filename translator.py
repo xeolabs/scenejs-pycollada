@@ -33,19 +33,27 @@ def translate_geometry(geom):
     }
     for prim in geom.primitives():
         # Todo: support other primitive types
+        # Todo: support nested geometry nodes
         if type(prim) is collada.triangleset.BoundTriangleSet or type(prim) is collada.polylist.BoundPolygonList: 
             jsGeom['primitive'] = 'triangles'
             
             if not 'positions' in jsGeom:
                 jsGeom['positions'] = []
+            if not 'indices' in jsGeom:
+                jsGeom['indices'] = []
+
+            i = 0
             
             if type(prim) is collada.triangleset.BoundTriangleSet:
                 for tri in prim.triangles():                
                     jsGeom['positions'].extend([val for vert in tri.vertices for val in vert])
+                    jsGeom['indices'].extend([3 * i + 0, 3 * i + 1, 3 * i + 2])
+                    i += 1
             elif type(prim) is collada.polylist.BoundPolygonList:
                 for poly in prim.polygons():
                     for tri in poly.triangles():
                         jsGeom['positions'].extend([val for vert in tri.vertices for val in vert])
-      
+                        jsGeom['indices'].extend([3 * i + 0, 3 * i + 1, 3 * i + 2])
+                        i += 1      
     return jsGeom
 

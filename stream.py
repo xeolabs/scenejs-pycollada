@@ -47,7 +47,7 @@ class ScenejsJavascriptStream:
           streamObj
             A file, string IO or network socket object
         """
-        self.streamObj.write("CreateNode(" + json.dumps(node) + ");")
+        self.streamObj.write("SceneJS.createNode(" + json.dumps(node) + ");")
 
 
 class ScenejsBinaryStream:

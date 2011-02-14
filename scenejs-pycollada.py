@@ -70,6 +70,8 @@ def usage():
     print "Miscelaneous options:"
     print "  -h, --help                     Display this help message"
     print "  -v, --verbose                  Display verbose warnings and translation information"
+    print "  --geometry-only                TODO: export only geometry"
+    print "  --geometry-materials           TODO: geometry and materials only"
     print "  -o [FORMAT], --output=[FORMAT] Use the specified output mode, FORMAT may be any one of the following"
     print "                                 json   - Raw JSON data is output"
     print "                                 js     - JavaScript code is output and nodes created"

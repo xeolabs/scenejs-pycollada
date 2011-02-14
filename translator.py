@@ -28,11 +28,15 @@ def translate(outputStream, colladaObj, debug = False, verbose = False):
     for mat in colladaObj.materials:
         if _debug:
            print "Exporting material '" + mat.id + "'..."
-        lib['nodes'].append(translate_material(mat))
+        jsMat = translate_material(mat)
+        if jsMat:
+            lib['nodes'].append(jsMat)
     for geom in colladaObj.geometries:
         if _debug:
             print "Exporting geometry '" + geom.id + "'..."
-        lib['nodes'].append(translate_geometry(geom))
+        jsGeom = translate_geometry(geom)
+        if jsGeom:
+            lib['nodes'].append(jsGeom)
 
     outputStream.write(lib)
 
@@ -41,7 +45,8 @@ def translate(outputStream, colladaObj, debug = False, verbose = False):
         if _debug:
             print "Exporting scene '" + scene.id + "'..."
         jsScene = translate_scene(scene)
-        outputStream.write(jsScene)
+        if jsScene:
+            outputStream.write(jsScene)
 
 def translate_material(mat):
   print "Todo: Translate material"

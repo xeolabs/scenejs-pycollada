@@ -98,9 +98,19 @@ def main(argv):
             outputStream = open(outputFileName,'w')
             if verbose and outputStream:
                 print "Created the file '" + outputFileName + "'"
-      
+
+        # Translate and output the file
+        if htmlOutputStream:
+            if embedInHtml:
+                htmlOutputStream.write("<script type='text/javascript'>\n")
+            else:
+                htmlOutputStream.write("<script type='text/javascript' src='" + outputFileName + "'>\n")
+
         translate(outputFormat(outputStream), colladaObj, debug, verbose)
 
+        if htmlOutputStream:
+           htmlOutputStream.write("</script>\n\n")
+    
     outputStream.flush()
 
     if htmlOutputStream:

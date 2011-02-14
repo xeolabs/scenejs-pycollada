@@ -23,6 +23,7 @@ class ScenejsJsonStream:
 
     def write(self, node):
         json.dump(node, self.streamObj)
+        self.streamObj.write('\n');
 
 
 class ScenejsJavascriptStream:
@@ -47,7 +48,7 @@ class ScenejsJavascriptStream:
           streamObj
             A file, string IO or network socket object
         """
-        self.streamObj.write("SceneJS.createNode(" + json.dumps(node) + ");")
+        self.streamObj.write("SceneJS.createNode(" + json.dumps(node) + ");\n")
 
 
 class ScenejsBinaryStream:

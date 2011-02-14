@@ -114,7 +114,7 @@ def main(argv):
     outputStream.flush()
 
     if htmlOutputStream:
-        htmlOutputStream.write(generate_html_body())
+        htmlOutputStream.write(generate_html_body(colladaObj.scene.id if not librariesOnly else None))
         htmlOutputStream.flush()
 
 def usage():

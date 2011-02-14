@@ -79,12 +79,16 @@ def main(argv):
         htmlOutputStream.write(generate_html_head("SceneJS sample"))
 
     # Load and translate each file specified
+    sceneIds = []
     for filename in args:
         # Check whether the file exists and try to load it into a collada object
         if not os.path.isfile(filename):
             print "'" + filename + "' is not a valid file path."
             sys.exit(2)
         colladaObj = collada.Collada(filename, ignore=[collada.DaeUnsupportedError])
+
+        # Add every scene's id to the list of al scene ids (to be used with sample generation)
+        sceneIds.append(colladaObj.scene.id)
         
         # Generate an output stream
         basePath = os.path.splitext(filename)[0]
@@ -113,8 +117,9 @@ def main(argv):
     
     outputStream.flush()
 
-    if htmlOutputStream:
-        htmlOutputStream.write(generate_html_body(colladaObj.scene.id if not librariesOnly else None))
+    if htmlOutputStream and len(sceneIds) > 0:
+        # Todo: support multiple scenes in a sample file... (via a html drop-down)
+        htmlOutputStream.write(generate_html_body(sceneIds[0] if not librariesOnly else None))
         htmlOutputStream.flush()
 
 def usage():

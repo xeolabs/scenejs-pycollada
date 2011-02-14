@@ -113,7 +113,17 @@ def _translate_scene_nodes(nodes):
         elif type(node) is collada.scene.ControllerNode:
             print "Controller Node!"
         elif type(node) is collada.scene.CameraNode:
-            print "Camera Node!"
+            # TODO: Cameras should be on top of the hierarchy in scenejs
+            jsNodes.append({ 
+                'type': 'camera',
+                'optics': {
+                     'type': 'perspective',
+                     'fovy': node.camera.fov,
+                     'aspect': 1.0, # TODO: aspect ratio is not currently available
+                     'near': node.camera.near,
+                     'far': node.camera.far
+                }
+            })
         elif type(node) is collada.scene.LightNode:
             print "Light Node!"
         elif type(node) is collada.scene.ExtraNode:

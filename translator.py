@@ -117,15 +117,31 @@ def _translate_scene_nodes(nodes):
             jsNodes.append({ 
                 'type': 'camera',
                 'optics': {
-                     'type': 'perspective',
+                     'type': 'perspective', #TODO: type of camera can't be retrieved a.t.m. assuming "perspective" for now
                      'fovy': node.camera.fov,
                      'aspect': 1.0, # TODO: aspect ratio is not currently available
                      'near': node.camera.near,
                      'far': node.camera.far
                 }
+                #node.camera.position
+                #node.camera.direction
+                #node.camera.up
             })
         elif type(node) is collada.scene.LightNode:
-            print "Light Node!"
+            # TODO: lights should be 
+            if type(node.light) is collada.light.AmbientLight or type(node.light) is collada.light.BoundAmbientLight:
+                mode = 'ambient'
+            elif type(node.light) is collada.light.PointLight or type(node.light) is collada.light.BoundPointLight:
+                mode = 'point'
+            elif type(node.light) is collada.light.SunLight or type(node.light) is collada.light.BoundSunLight:
+                mode = 'dir'
+            elif _verbose:
+                # TODO: This won't work and it is used elsewhere as well...
+                print "Warning: Unknown light mode '" + type(node.light) + "'"
+            jsNodes.insert(0, { 
+                'type': 'light',
+                'mode': mode
+            })
         elif type(node) is collada.scene.ExtraNode:
             print "Extra Node!"
         else:

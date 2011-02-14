@@ -27,10 +27,15 @@ def main(argv):
             global _debug
             _debug = 1
         elif opt in ("-o", "--output"):
-            outputFormat = { 
-              "json":   ScenejsJsonStream,
-              "js":     ScenejsJavascriptStream,
-              "binary": ScenejsBinaryStream }[arg]
+            try: 
+              outputFormat = { 
+                "json":   ScenejsJsonStream,
+                "js":     ScenejsJavascriptStream,
+                "binary": ScenejsBinaryStream }[arg]
+            except KeyError:
+              print "Unknown output format '" + arg + "'"
+              usage()
+              sys.exit(2)
         elif opt in ("-v", "--verbose"): 
             global _verbose
             _verbose = 1
@@ -49,7 +54,7 @@ def main(argv):
         # Check whether the file exists and try to load it into a collada object
         if not os.path.isfile(filename):
             print "'" + filename + "' is not a valid file path."
-            sys.exit(2);
+            sys.exit(2)
         colladaObj = collada.Collada(filename, ignore=[collada.DaeUnsupportedError])
         
         # Create an output file write the SceneJS scene to
@@ -63,10 +68,13 @@ def usage():
     print "    python scenejs-collada [OPTION]... [FILE]..."
     print ""
     print "Miscelaneous options:"
-    print "  -h, --help                 Display this help message"
-    print "  -v, --verbose              Display verbose warnings and translation information"
-    #todo: print "  -o, --output=[json|javascript]  "
-    print "  -d                         Turn on debug mode"
+    print "  -h, --help                     Display this help message"
+    print "  -v, --verbose                  Display verbose warnings and translation information"
+    print "  -o [FORMAT], --output=[FORMAT] Use the specified output mode, FORMAT may be any one of the following"
+    print "                                 json   - Raw JSON data is output"
+    print "                                 js     - JavaScript code is output and nodes created"
+    print "                                 binary - Output JavaScript code along with accompanying binary"
+    print "  -d                             Turn on debug mode"
 
 if __name__ == "__main__":
     main(sys.argv[1:])

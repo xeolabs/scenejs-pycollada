@@ -46,5 +46,6 @@ def translate_geometry(geom):
                 for poly in prim.polygons():
                     for tri in poly.triangles():
                         jsGeom['positions'].extend([val for vert in tri.vertices for val in vert])
+      
     return jsGeom
 

@@ -7,16 +7,17 @@ import sys
 import getopt
 import os.path
 from translator import translate
-from stream import ScenejsJsonStream
+from stream import ScenejsJsonStream, ScenejsJavascriptStream, ScenejsBinaryStream
 
 def main(argv):
     # Get the command-line options given to the program
     try:                                
-        opts, args = getopt.getopt(argv, "hvd", ["help", "verbose"]) 
+        opts, args = getopt.getopt(argv, "hvdo:", ["help", "verbose", "output="]) 
     except getopt.GetoptError:           
         usage()                          
         sys.exit(2)
     
+    outputFormat = ScenejsJavascriptStream
     for opt, arg in opts:
         if opt in ("-h", "--help"):
             print "Translate a Collada file to a JSON formatted SceneJS file"
@@ -25,14 +26,23 @@ def main(argv):
         elif opt == '-d':
             global _debug
             _debug = 1
+        elif opt in ("-o", "--output"):
+            outputFormat = { 
+              "json":   ScenejsJsonStream,
+              "js":     ScenejsJavascriptStream,
+              "binary": ScenejsBinaryStream }[arg]
         elif opt in ("-v", "--verbose"): 
             global _verbose
             _verbose = 1
+        else:
+            print "Unknown option supplied '" + opt + "'"
+            usage()
+            sys.exit(2)
 
     if not args:
         print "No input files specified"
-        usage();
-        sys.exit(2);
+        usage()
+        sys.exit(2)
     
     # Load and translate each file specified
     for filename in args:
@@ -44,8 +54,8 @@ def main(argv):
         
         # Create an output file write the SceneJS scene to
         basePath = os.path.splitext(filename)[0]
-        outputFile = open(basePath + ".json","w")
-        translate(ScenejsJsonStream(outputFile), colladaObj)
+        outputFile = open(basePath + "." + outputFormat.fileExtension,"w")
+        translate(outputFormat(outputFile), colladaObj)
 
 def usage():
     print "Usage: "
@@ -55,6 +65,7 @@ def usage():
     print "Miscelaneous options:"
     print "  -h, --help                 Display this help message"
     print "  -v, --verbose              Display verbose warnings and translation information"
+    #todo: print "  -o, --output=[json|javascript]  "
     print "  -d                         Turn on debug mode"
 
 if __name__ == "__main__":

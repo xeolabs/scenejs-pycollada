@@ -6,7 +6,7 @@ outputs the result to a stream (a file, string or network socket)
 import collada
 import sys
 
-def translate(outputStream, colladaObj, debug = 0, verbose = 0):
+def translate(outputStream, colladaObj, debug = False, verbose = False):
     """
       Translates a colladaObj given by PyCollada into SceneJS JSON and
       outputs the result to a stream.
@@ -21,16 +21,20 @@ def translate(outputStream, colladaObj, debug = 0, verbose = 0):
     _debug, _verbose = debug, verbose
 
     # Export libraries
+    lib = { 'type': 'library', 'nodes': [] }
+
+    if _debug:
+        print "Exporting libraries..."
     for mat in colladaObj.materials:
         if _debug:
            print "Exporting material '" + mat.id + "'..."
-        jsMat = translate_material(mat)
-        outputStream.write(jsMat)
+        lib['nodes'].append(translate_material(mat))
     for geom in colladaObj.geometries:
         if _debug:
             print "Exporting geometry '" + geom.id + "'..."
-        jsGeom = translate_geometry(geom)
-        outputStream.write(jsGeom)
+        lib['nodes'].append(translate_geometry(geom))
+
+    outputStream.write(lib)
 
     # Export scenes
     for scene in [colladaObj.scene]:

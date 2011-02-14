@@ -6,7 +6,7 @@ outputs the result to a stream (a file, string or network socket)
 import collada
 import sys
 
-def translate(outputStream, colladaObj, debug = 0):
+def translate(outputStream, colladaObj, debug = 0, verbose = 0):
     """
       Translates a colladaObj given by PyCollada into SceneJS JSON and
       outputs the result to a stream.
@@ -17,22 +17,25 @@ def translate(outputStream, colladaObj, debug = 0):
         colladaObj
           Collada object given by PyCollada.
     """
-    global _debug
-    _debug = debug
+    global _debug, _verbose
+    _debug, _verbose = debug, verbose
 
-    for mat in colladaObj.scene.objects('material'):
+    # Export libraries
+    for mat in colladaObj.materials:
         if _debug:
-          print "Exporting material '" + mat.original.id + "'..."
+           print "Exporting material '" + mat.id + "'..."
         jsMat = translate_material(mat)
         outputStream.write(jsMat)
-    for geom in colladaObj.scene.objects('geometry'):
+    for geom in colladaObj.geometries:
         if _debug:
-          print "Exporting geometry '" + geom.original.id + "'..."
+            print "Exporting geometry '" + geom.id + "'..."
         jsGeom = translate_geometry(geom)
         outputStream.write(jsGeom)
-    for scene in colladaObj.scene.objects('scene'):
+
+    # Export scenes
+    for scene in [colladaObj.scene]:
         if _debug:
-          print "Exporting scene '" + scene.id + "'..."
+            print "Exporting scene '" + scene.id + "'..."
         jsScene = translate_scene(scene)
         outputStream.write(jsScene)
 
@@ -52,10 +55,10 @@ def translate_geometry(geom):
     """
     jsGeom = {
         'type': 'geometry',
-        'id': geom.original.id,
-        'resource': geom.original.id,
+        'id': geom.id,
+        'resource': geom.id,
     }
-    for prim in geom.primitives():
+    for prim in geom.primitives:
         # Todo: support other primitive types
         # Todo: support nested geometry nodes
         if type(prim) is collada.triangleset.BoundTriangleSet or type(prim) is collada.polylist.BoundPolygonList: 
@@ -80,7 +83,8 @@ def translate_geometry(geom):
                         jsGeom['positions'].extend([val for vert in tri.vertices for val in vert])
                         jsGeom['indices'].extend([3 * i + 0, 3 * i + 1, 3 * i + 2])
                         i += 1
-
+            elif _verbose:
+                print "Warning: '" + type(prim) + "' geometry type is not yet supported by the translator"
     return jsGeom
 
 def translate_scene(scene):

@@ -102,13 +102,13 @@ def main(argv):
         # Translate and output the file
         if htmlOutputStream:
             if embedInHtml:
-                htmlOutputStream.write("<script type='text/javascript'>\n")
+                htmlOutputStream.write("    <script type='text/javascript'>\n")
             else:
-                htmlOutputStream.write("<script type='text/javascript' src='" + outputFileName + "'>\n")
+                htmlOutputStream.write("    <script type='text/javascript' src='" + outputFileName + "'></script>\n")
 
         translate(outputFormat(outputStream), colladaObj, debug, verbose)
 
-        if htmlOutputStream:
+        if htmlOutputStream and embedInHtml:
            htmlOutputStream.write("</script>\n\n")
     
     outputStream.flush()

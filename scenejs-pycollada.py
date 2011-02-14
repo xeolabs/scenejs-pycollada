@@ -17,6 +17,7 @@ def main(argv):
         usage()                          
         sys.exit(2)
     
+    debug = 0
     outputFormat = ScenejsJavascriptStream
     for opt, arg in opts:
         if opt in ("-h", "--help"):
@@ -24,8 +25,7 @@ def main(argv):
             usage()     
             sys.exit()
         elif opt == '-d':
-            global _debug
-            _debug = 1
+            debug = 1
         elif opt in ("-o", "--output"):
             try: 
               outputFormat = { 
@@ -60,7 +60,7 @@ def main(argv):
         # Create an output file write the SceneJS scene to
         basePath = os.path.splitext(filename)[0]
         outputFile = open(basePath + "." + outputFormat.fileExtension,"w")
-        translate(outputFormat(outputFile), colladaObj)
+        translate(outputFormat(outputFile), colladaObj, debug)
 
 def usage():
     print "Usage: "
@@ -70,6 +70,7 @@ def usage():
     print "Miscelaneous options:"
     print "  -h, --help                     Display this help message"
     print "  -v, --verbose                  Display verbose warnings and translation information"
+    print "  --libraries-only               TODO: export only libraries, excluding scenes"
     print "  --geometry-only                TODO: export only geometry"
     print "  --geometry-materials           TODO: geometry and materials only"
     print "  -o [FORMAT], --output=[FORMAT] Use the specified output mode, FORMAT may be any one of the following"

@@ -128,7 +128,7 @@ def _translate_scene_nodes(nodes):
                 #node.camera.up
             })
         elif type(node) is collada.scene.LightNode:
-            # TODO: lights should be 
+            mode = None 
             if type(node.light) is collada.light.AmbientLight or type(node.light) is collada.light.BoundAmbientLight:
                 mode = 'ambient'
             elif type(node.light) is collada.light.PointLight or type(node.light) is collada.light.BoundPointLight:
@@ -138,10 +138,25 @@ def _translate_scene_nodes(nodes):
             elif _verbose:
                 # TODO: This won't work and it is used elsewhere as well...
                 print "Warning: Unknown light mode '" + type(node.light) + "'"
-            jsNodes.insert(0, { 
-                'type': 'light',
-                'mode': mode
-            })
+            if mode:
+                jsLight = { 
+                    'type': 'light',
+                    'mode': mode,
+                    'color': { 'r': node.light.color[0], 'g': node.light.color[1], 'b': node.light.color[2] }
+                    #'diffuse': True # (default value)
+                    #'specular': True # (default value)
+                }
+                if mode == 'point':
+                    jsLight['constantAttenuation'] = node.light.constant_att
+                    jsLight['linearAttenuation'] = node.light.linear_att
+                    jsLight['quadraticAttenuation'] = node.light.quad_att
+                
+                if mode == 'dir':
+                    jsLight['dir'] = {}
+                    jsLight['dir']['x'] = node.light.direction[0]
+                    jsLight['dir']['y'] = node.light.direction[1]
+                    jsLight['dir']['z'] = node.light.direction[2]
+                jsNodes.insert(0, jsLight)
         elif type(node) is collada.scene.ExtraNode:
             print "Extra Node!"
         else:

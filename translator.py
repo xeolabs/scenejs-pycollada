@@ -81,30 +81,44 @@ def translate_geometry(geom):
     for prim in geom.primitives:
         # Todo: support other primitive types
         # Todo: support nested geometry nodes
-        if type(prim) is collada.triangleset.BoundTriangleSet or type(prim) is collada.polylist.BoundPolygonList: 
+        if type(prim) is collada.triangleset.TriangleSet or type(prim) is collada.polylist.PolygonList: 
             #jsGeomBins = {}
             jsGeom['primitive'] = 'triangles'
             
             if not 'positions' in jsGeom:
                 jsGeom['positions'] = []
+            #if not 'normals' in jsGeom:
+            #    jsGeom['normals'] = []
             if not 'indices' in jsGeom:
                 jsGeom['indices'] = []
 
-            i = 0
+            # old: i = 0
+
+            # todo: increase indices if necessary (but probably create multiple sub-geometries instead)
             
-            if type(prim) is collada.triangleset.BoundTriangleSet:
-                for tri in prim.triangles():                
-                    jsGeom['positions'].extend([val for vert in tri.vertices for val in vert])
-                    jsGeom['indices'].extend([3 * i + 0, 3 * i + 1, 3 * i + 2])
-                    i += 1
-            elif type(prim) is collada.polylist.BoundPolygonList:
-                for poly in prim.polygons():
-                    for tri in poly.triangles():
-                        jsGeom['positions'].extend([val for vert in tri.vertices for val in vert])
-                        jsGeom['indices'].extend([3 * i + 0, 3 * i + 1, 3 * i + 2])
-                        i += 1
+            if type(prim) is collada.triangleset.TriangleSet:
+                jsGeom['positions'].extend([float(val) for vert in prim.vertex for val in vert])
+                #todo: jsGeom['normals'].extend(prim.normal)
+                jsGeom['indices'].extend([int(i) for i in prim.indices])
+                # todo: jsGeom['uv']
+                # old:
+                #for tri in prim.triangles():                
+                #    jsGeom['positions'].extend([val for vert in tri.vertices for val in vert])
+                #    jsGeom['indices'].extend([3 * i + 0, 3 * i + 1, 3 * i + 2])
+                #    i += 1
+            elif type(prim) is collada.polylist.PolygonList:
+                jsGeom['positions'].extend([float(val) for vert in prim.vertex for val in vert])
+                #todo: jsGeom['normals'].extend(prim.normal)
+                jsGeom['indices'].extend([int(i) for i in prim.indices])
+                # todo: jsGeom['uv']
+                # old:
+                #for poly in prim.polygons():
+                #    for tri in poly.triangles():
+                #        jsGeom['positions'].extend([val for vert in tri.vertices for val in vert])
+                #        jsGeom['indices'].extend([3 * i + 0, 3 * i + 1, 3 * i + 2])
+                #        i += 1
             elif _verbose:
-                print "Warning: '" + type(prim) + "' geometry type is not yet supported by the translator"
+                print "Warning: '" + type(prim).__name__ + "' geometry type is not yet supported by the translator"
     return jsGeom
 
 def _translate_scene_nodes(nodes):
@@ -145,8 +159,7 @@ def _translate_scene_nodes(nodes):
             elif type(node.light) is collada.light.SunLight or type(node.light) is collada.light.BoundSunLight:
                 mode = 'dir'
             elif _verbose:
-                # TODO: This won't work and it is used elsewhere as well...
-                print "Warning: Unknown light mode '" + type(node.light) + "'"
+                print "Warning: Unknown light mode '" + type(node.light).__name__ + "'"
             if mode:
                 jsLight = { 
                     'type': 'light',

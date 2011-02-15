@@ -242,6 +242,16 @@ def translate_scene(scene):
         'id': scene.id,
         'canvasId': 'scenejsCanvas',
         'loggingElementId': 'scenejsLog',
-        'nodes': [ jsCamera ]
+        'nodes': [{
+            'type': 'renderer',
+            'clear': {
+                'depth': True,
+                'color': True,
+                'stencil': False
+            },
+            'clearColor': { 'r': 0.4, 'g': 0.4, 'b': 0.4 },
+            'nodes': [ jsCamera ]
+        }]
+
     }
 

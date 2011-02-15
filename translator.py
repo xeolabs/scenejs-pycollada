@@ -49,7 +49,14 @@ def translate(outputStream, colladaObj, debug = False, verbose = False):
             outputStream.write(jsScene)
 
 def translate_material(mat):
-  print "Todo: Translate material"
+    """
+      Translates a collada material node into a SceneJS material node.
+
+      :Parameters:
+        geom
+          An instance of the PyCollada Material class.
+    """
+    print "Todo: Translate material"
 
 """
 def _hashPrimitive(prim)
@@ -60,7 +67,11 @@ def _hashPrimitive(prim)
 
 def translate_geometry(geom):
     """
-      Translates a collada geometry node into one or more SceneJS geometry nodes
+      Translates a collada geometry node into one or more SceneJS geometry nodes.
+
+      :Parameters:
+        geom
+          An instance of the PyCollada Geometry class.
     """
     jsGeom = {
         'type': 'geometry',
@@ -97,6 +108,13 @@ def translate_geometry(geom):
     return jsGeom
 
 def _translate_scene_nodes(nodes):
+    """
+      Recursively translates collada scene graph nodes (instantiating the nodes defined in the library).
+
+      :Parameters:
+        node
+          Any node in the collada visual scene not handled by the other methods.
+    """
     jsNodes = []
     for node in nodes:
         if type(node) is collada.scene.MaterialNode:
@@ -105,28 +123,19 @@ def _translate_scene_nodes(nodes):
             jsNodes.append({ 'type': 'instance', 'target': node.geometry.id })
         elif type(node) is collada.scene.TransformNode:
             if node.nodes:
-                jsNodes.append({ 
-                    'type': 'matrix', 
-                    'elements': [element for row in node.matrix for element in row],
-                    'nodes': _translate_scene_nodes(node.nodes) 
-                })
+                jsChildNodes = _translate_scene_nodes(node.nodes)
+                # Don't append the transform node unless it has children (isolated transform nodes are redundant)
+                if jsChildNodes:
+                    jsNodes.append({ 
+                        'type': 'matrix', 
+                        'elements': [element for row in node.matrix for element in row],
+                        'nodes': jsChildNodes
+                    })
         elif type(node) is collada.scene.ControllerNode:
             print "Controller Node!"
         elif type(node) is collada.scene.CameraNode:
             # TODO: Cameras should be on top of the hierarchy in scenejs
-            jsNodes.append({ 
-                'type': 'camera',
-                'optics': {
-                     'type': 'perspective', #TODO: type of camera can't be retrieved a.t.m. assuming "perspective" for now
-                     'fovy': node.camera.fov,
-                     'aspect': 1.0, # TODO: aspect ratio is not currently available
-                     'near': node.camera.near,
-                     'far': node.camera.far
-                }
-                #node.camera.position
-                #node.camera.direction
-                #node.camera.up
-            })
+            pass
         elif type(node) is collada.scene.LightNode:
             mode = None 
             if type(node.light) is collada.light.AmbientLight or type(node.light) is collada.light.BoundAmbientLight:
@@ -163,11 +172,63 @@ def _translate_scene_nodes(nodes):
             print "Unknown node"
     return jsNodes
 
+def translate_camera(camera):
+    """
+      Translates a collada camera into SceneJS lookAt and camera nodes.
+    """
+    return {
+        'type': 'lookAt',
+        'eye': { 'x': camera.position[0], 'y': camera.position[1], 'z': camera.position[2] },
+        'look': { 'x': camera.position[0] + camera.direction[0], 'y': camera.position[1] + camera.direction[1], 'z': camera.position[2] + camera.direction[2] },
+        'up': { 'x': camera.up[0], 'y': camera.up[1], 'z': camera.up[2] },
+        'nodes': [{ 
+            'type': 'camera',
+            'optics': {
+                 'type': 'perspective', #TODO: type of camera can't be retrieved a.t.m. assuming "perspective" for now
+                 'fovy': camera.fov,
+                 'aspect': 1.0, # TODO: aspect ratio is not currently available
+                 'near': camera.near,
+                 'far': camera.far
+            }
+        }]
+    }
+
 def translate_scene(scene):
+    """
+      Translates collada scene graph hierarchy into a SceneJS scene graph.
+      This makes some changes to the hierarchy, such as placing camera nodes above visual nodes.
+    """
+    cameras = scene.objects('camera')
+    cam = cameras.next()
+    if cam:
+        jsCamera = translate_camera(cam) 
+    else:
+        if _verbose:
+            print "No camera found in the scene '" + scene.id + "' generating the default one."
+        jsCamera = {
+            'type': 'lookAt',
+            'eye': { 'x': 0.0, 'y': 0.0, 'z': 0.0 },
+            'look': { 'x': 0.0, 'y': 0.0, 'z': 1.0 },
+            'up': { 'x': 0.0, 'y': 1.0, 'z': 0.0 },
+            'nodes': [{ 
+                'type': 'camera',
+                'optics': {
+                     'type': 'perspective',
+                     'fovy': 60.0,
+                     'aspect': 1.0,
+                     'near': 0.1,
+                     'far': 10000.0
+                },
+                'nodes': []
+            }]
+        }
+    jsCamera['nodes'][0]['nodes'] = _translate_scene_nodes(scene.nodes)
+    
     return {
         'type': 'scene',
         'id': scene.id,
         'canvasId': 'scenejsCanvas',
         'loggingElementId': 'scenejsLog',
-        'nodes': _translate_scene_nodes(scene.nodes)
+        'nodes': [ jsCamera ]
     }
+

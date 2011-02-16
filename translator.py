@@ -48,6 +48,16 @@ def translate(outputStream, colladaObj, debug = False, verbose = False):
         if jsScene:
             outputStream.write(jsScene)
 
+# Helpers
+def _scalarAttribute(jsNode, key, val):
+  if val:
+    jsNode[key] = val
+
+def _rgbAttribute(jsNode, key, val):
+  if val:
+    jsNode[key] = { 'r': val[0], 'g': val[1], 'b': val[2] }
+
+
 def translate_material(mat):
     """
       Translates a collada material node into a SceneJS material node.
@@ -56,7 +66,17 @@ def translate_material(mat):
         geom
           An instance of the PyCollada Material class.
     """
-    print "Todo: Translate material"
+    jsMaterial = {
+        'type': 'material',
+        'id': mat.id,
+        'baseColor': { 'r': mat.diffuse[0], 'g': mat.diffuse[1], 'b': mat.diffuse[2] },
+        # TODO: not yet supported 'reflect': mat.reflective...
+        'emit': (mat.emission[0] + mat.emission[1] + mat.emission[2]) / 3.0
+    }
+    _scalarAttribute(jsMaterial, 'shine', mat.shininess)
+    _scalarAttribute(jsMaterial, 'alpha', mat.transparency)
+    _rgbAttribute(jsMaterial, 'specularColor', mat.specular)
+    return jsMaterial
 
 """
 def _hashPrimitive(prim)
@@ -87,8 +107,8 @@ def translate_geometry(geom):
             
             if not 'positions' in jsGeom:
                 jsGeom['positions'] = []
-            #if not 'normals' in jsGeom:
-            #    jsGeom['normals'] = []
+            if not 'normals' in jsGeom:
+                jsGeom['normals'] = []
             if not 'indices' in jsGeom:
                 jsGeom['indices'] = []
 
@@ -98,7 +118,7 @@ def translate_geometry(geom):
             
             if type(prim) is collada.triangleset.TriangleSet:
                 jsGeom['positions'].extend([float(val) for vert in prim.vertex for val in vert])
-                #todo: jsGeom['normals'].extend(prim.normal)
+                jsGeom['normals'].extend([float(val) for norm in prim.normal for val in norm])
                 jsGeom['indices'].extend([int(i) for i in prim.indices])
                 # todo: jsGeom['uv']
                 # old:
@@ -108,7 +128,7 @@ def translate_geometry(geom):
                 #    i += 1
             elif type(prim) is collada.polylist.PolygonList:
                 jsGeom['positions'].extend([float(val) for vert in prim.vertex for val in vert])
-                #todo: jsGeom['normals'].extend(prim.normal)
+                jsGeom['normals'].extend([float(val) for norm in prim.normal for val in norm])
                 jsGeom['indices'].extend([int(i) for i in prim.indices])
                 # todo: jsGeom['uv']
                 # old:
@@ -132,7 +152,7 @@ def _translate_scene_nodes(nodes):
     jsNodes = []
     for node in nodes:
         if type(node) is collada.scene.MaterialNode:
-            print "Material Node!"
+            print "TODO: Material Node!"
         elif type(node) is collada.scene.GeometryNode:
             jsNodes.append({ 'type': 'instance', 'target': node.geometry.id })
         elif type(node) is collada.scene.TransformNode:

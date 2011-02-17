@@ -102,6 +102,9 @@ def translate_geometry(geom):
         'id': geom.id,
         'resource': geom.id,
     }
+
+    warn_nontriangles_found = False # TEMPORARY
+
     for prim in geom.primitives:
         # TODO: support other primitive types
         # TODO: support nested geometry nodes
@@ -113,7 +116,7 @@ def translate_geometry(geom):
             if _verbose:
                 print "Warning: Multiple primitive types in one geometry is not yet supported."
             break;
-        
+
         if type(prim) is collada.triangleset.TriangleSet or type(prim) is collada.polylist.PolygonList: 
 
             jsGeom['primitive'] = 'triangles'
@@ -159,73 +162,50 @@ def translate_geometry(geom):
             else:
                 norm_index = -1
                 prim_index_index = 0
-                #index_index = 0
-                print "Index map: " + str(index_map)
                 for prim_vert_index in prim.vertex_index:
+                  
+                     # TEMPORARY
+                    if _verbose and len(prim_vert_index) != 3:
+                        warn_nontriangles_found = True
+                        if len(prim_vert_index) < 3: 
+                            pass
+
                     if prim.normal != None:
                         prim_norm_index = prim.normal_index[prim_index_index]
-                    for i in range(len(prim_vert_index)):
+
+                    # TODO for i in range(len(prim_vert_index)):
+                    for i in range(min(len(prim_vert_index), 3)):
                         vert_index = prim_vert_index[i]
                         norm_index = prim_norm_index[i]
-                        #index_index += 1
-
-                        print "First vert index: " + str(vert_index)
-                        print "First index map entry: " + str(index_map[vert_index][0])
 
                         # Find an entry in the index_map that matches all of the indices of the other vertex attributes
                         while vert_index != -1 and index_map[vert_index][0][0] != -1 and index_map[vert_index][0] != (norm_index,):
-                            print "Vert index: " + str(vert_index)
-                            print "Index map entry: " + str(index_map[vert_index][0])
                             prev_vert_index = vert_index
                             vert_index = index_map[vert_index][1]
                         
                         # If a new index has to be added to the index_map, then do so
                         if vert_index == -1:
                             vert_index = len(jsGeom['positions']) / 3
-                            #print vert_index
                             index_map[prev_vert_index] = (index_map[prev_vert_index][0], len(index_map))
                             index_map.append(((norm_index,), -1))
                             # Now add new entries for vertex attributes themselves
                             jsGeom['positions'].extend(float(p) for p in prim.vertex[prim_vert_index[i]])
-                            print "n before: " + str(jsGeom['normals'])
                             jsGeom['normals'].extend([float(n) for n in prim.normal[prim_norm_index[i]]])
-                            print "n after: " + str(jsGeom['normals'])
                         elif index_map[vert_index][0][0] == -1:
                             # Replace the (-1, -1, ...) entry with the correct attribute indexes tupple
                             index_map[vert_index] = ((norm_index,), -1)
-                            print "n before: " + str(jsGeom['normals'])
-                            print str(vert_index*3) + ":" + str(vert_index*3+3) + " = " + str([float(n) for n in prim.normal[prim_norm_index[i]]])
                             jsGeom['normals'][vert_index*3:vert_index*3+3] = [float(n) for n in prim.normal[prim_norm_index[i]]]
-                            print "n after: " + str(jsGeom['normals'])
                         
                         # Add the newly calculated vertex index (which may be the original one or a new one if the vertex has been split)
                         jsGeom['indices'].append(int(vert_index))
                     
                     prim_index_index += 1
-
-            #if type(prim) is collada.triangleset.TriangleSet:
-            #    jsGeom['positions'].extend([float(val) for vert in prim.vertex for val in vert])
-            #    jsGeom['normals'].extend([float(val) for norm in prim.normal for val in norm])
-            #    jsGeom['indices'].extend([int(i) for i in prim.indices])
-            #    # TODO: jsGeom['uv']
-            #    # OLD:
-            #    #for tri in prim.triangles():                
-            #    #    jsGeom['positions'].extend([val for vert in tri.vertices for val in vert])
-            #    #    jsGeom['indices'].extend([3 * i + 0, 3 * i + 1, 3 * i + 2])
-            #    #    i += 1
-            #elif type(prim) is collada.polylist.PolygonList:
-            #    jsGeom['positions'].extend([float(val) for vert in prim.vertex for val in vert])
-            #    jsGeom['normals'].extend([float(val) for norm in prim.normal for val in norm])
-            #    jsGeom['indices'].extend([int(i) for i in prim.indices])
-            #    # TODO: jsGeom['uv']
-            #    # OLD:
-            #    #for poly in prim.polygons():
-            #    #    for tri in poly.triangles():
-            #    #        jsGeom['positions'].extend([val for vert in tri.vertices for val in vert])
-            #    #        jsGeom['indices'].extend([3 * i + 0, 3 * i + 1, 3 * i + 2])
-            #    #        i += 1
         elif _verbose:
             print "Warning: '" + type(prim).__name__ + "' geometry type is not yet supported by the translator"
+
+    if _verbose and warn_nontriangles_found:
+        print "Warning: Geometry '" + geom.id + "' contains polygons that are not triangles. This is not yet supported."
+    
     return jsGeom
 
 def _translate_scene_nodes(nodes):
@@ -238,8 +218,6 @@ def _translate_scene_nodes(nodes):
     """
     jsNodes = []
     for node in nodes:
-        #if type(node) is collada.scene.MaterialNode:
-        #    print "TODO: Material Node!"
         if type(node) is collada.scene.GeometryNode:
             if _verbose and len(node.materials) > 1:
                 print "Warning: Geometry '" + node.geometry.id + "' has more than one material - only the first is used"

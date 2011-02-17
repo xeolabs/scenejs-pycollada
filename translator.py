@@ -151,10 +151,19 @@ def _translate_scene_nodes(nodes):
     """
     jsNodes = []
     for node in nodes:
-        if type(node) is collada.scene.MaterialNode:
-            print "TODO: Material Node!"
-        elif type(node) is collada.scene.GeometryNode:
-            jsNodes.append({ 'type': 'instance', 'target': node.geometry.id })
+        #if type(node) is collada.scene.MaterialNode:
+        #    print "TODO: Material Node!"
+        if type(node) is collada.scene.GeometryNode:
+            if _verbose and len(node.materials) > 1:
+                print "Warning: Geometry '" + node.geometry.id + "' has more than one material - only the first is used"
+            jsGeometryInstance = { 'type': 'instance', 'target': node.geometry.id }
+            if len(node.materials) > 0:
+                jsMaterial = translate_material(node.materials[0].target)
+                jsMaterial['nodes'] = [ jsGeometryInstance ]
+                jsNodes.append(jsMaterial)
+                #jsNodes.append({ 'type': 'instance', 'target': node.materials[0].target.id, 'nodes': [ jsGeometryInstance ] })
+            else:
+                jsNodes.append(jsGeometryInstance)
         elif type(node) is collada.scene.TransformNode:
             if node.nodes:
                 jsChildNodes = _translate_scene_nodes(node.nodes)

@@ -220,10 +220,11 @@ def _translate_scene_nodes(nodes):
     for node in nodes:
         if type(node) is collada.scene.GeometryNode:
             if _verbose and len(node.materials) > 1:
-                print "Warning: Geometry '" + node.geometry.id + "' has more than one material - only the first is used"
+                print "Warning: Geometry '" + node.geometry.id + "' has more than one material - only the first is currently used"
             jsGeometryInstance = { 'type': 'instance', 'target': node.geometry.id }
             if len(node.materials) > 0:
                 jsMaterial = translate_material(node.materials[0].target)
+                jsMaterial['id'] = node.geometry.id + '-' + jsMaterial['id']
                 jsMaterial['nodes'] = [ jsGeometryInstance ]
                 jsNodes.append(jsMaterial)
                 #jsNodes.append({ 'type': 'instance', 'target': node.materials[0].target.id, 'nodes': [ jsGeometryInstance ] })

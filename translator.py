@@ -3,6 +3,10 @@ Translate a collada object defined by PyCollada into SceneJS JSON and
 outputs the result to a stream (a file, string or network socket)
 """
 
+# TODO: We are not using correct convention for local variable names (See http://www.python.org/dev/peps/pep-0008/)
+#       It should be long_variable_name, not longVariableName...
+
+
 import collada
 import sys
 
@@ -99,46 +103,129 @@ def translate_geometry(geom):
         'resource': geom.id,
     }
     for prim in geom.primitives:
-        # Todo: support other primitive types
-        # Todo: support nested geometry nodes
+        # TODO: support other primitive types
+        # TODO: support nested geometry nodes
+        # TODO: support flat shaded geometry (only smooth shading is currently supported)
+
+        # TODO: Use an index buffer offset when multiple triangle sets or polygon lists are used
+        #       Or possibly create multiple sub-geometries instead...
+        if 'positions' in jsGeom:
+            if _verbose:
+                print "Warning: Multiple primitive types in one geometry is not yet supported."
+            break;
+        
         if type(prim) is collada.triangleset.TriangleSet or type(prim) is collada.polylist.PolygonList: 
-            #jsGeomBins = {}
+
             jsGeom['primitive'] = 'triangles'
+
+            # Note: WebGL does not support multiple sources of indices when drawing primitives, 
+            #       hence it is not possible to have a different position and normal streams.
+            #       When a vertex is shared by two faces has multiple attributes (e.g. normals)
+            #       it has to be split into multiple vertices. The following strategy is used to
+            #       make this happen:
+            #       When we read each vertex for every primitive, test whether the normal for 
+            #       this vertex has already been used before. We do this by storing a table with 
+            #       table[vertex_index] = (normal_index, next_index)
+            #       If the normal index for this vertex has already been used and is different
+            #       from the current normal index, continue and perform the check on table[next_index].
+            #       Eventually either the same normal index will be found or next_index will be 
+            #       its initial value -1. If it is -1 then we add a new entry to the table and update
+            #       the last next_index to point there. We also append a new vertex position and
+            #       normal.
+            # TODO: support other attributes (sources) in a similar manner
+
+            # Initialize the index mapping table for the normals
+            if prim.normal != None:
+                index_map = [((-1,), -1)] * len(prim.vertex)
+            use_index_map = (prim.normal != None)
+
+            #jsGeomBins = {}
             
             if not 'positions' in jsGeom:
                 jsGeom['positions'] = []
-            if not 'normals' in jsGeom:
+            if not 'normals' in jsGeom and prim.normal != None:
                 jsGeom['normals'] = []
             if not 'indices' in jsGeom:
                 jsGeom['indices'] = []
 
-            # old: i = 0
+            # Initialize the positions (since at least these must be present, possibly more if some vertices must be split)
+            jsGeom['positions'].extend([float(val) for vert in prim.vertex for val in vert])
+            if prim.normal != None:
+                jsGeom['normals'].extend([0.0] * len(prim.vertex) * 3)
 
-            # todo: increase indices if necessary (but probably create multiple sub-geometries instead)
-            
-            if type(prim) is collada.triangleset.TriangleSet:
-                jsGeom['positions'].extend([float(val) for vert in prim.vertex for val in vert])
-                jsGeom['normals'].extend([float(val) for norm in prim.normal for val in norm])
-                jsGeom['indices'].extend([int(i) for i in prim.indices])
-                # todo: jsGeom['uv']
-                # old:
-                #for tri in prim.triangles():                
-                #    jsGeom['positions'].extend([val for vert in tri.vertices for val in vert])
-                #    jsGeom['indices'].extend([3 * i + 0, 3 * i + 1, 3 * i + 2])
-                #    i += 1
-            elif type(prim) is collada.polylist.PolygonList:
-                jsGeom['positions'].extend([float(val) for vert in prim.vertex for val in vert])
-                jsGeom['normals'].extend([float(val) for norm in prim.normal for val in norm])
-                jsGeom['indices'].extend([int(i) for i in prim.indices])
-                # todo: jsGeom['uv']
-                # old:
-                #for poly in prim.polygons():
-                #    for tri in poly.triangles():
-                #        jsGeom['positions'].extend([val for vert in tri.vertices for val in vert])
-                #        jsGeom['indices'].extend([3 * i + 0, 3 * i + 1, 3 * i + 2])
-                #        i += 1
-            elif _verbose:
-                print "Warning: '" + type(prim).__name__ + "' geometry type is not yet supported by the translator"
+            # Loop through each vertex, check if it has to be split and then write the data to the relevant buffers
+            if not use_index_map:
+                jsGeom['indices'].extend([int(i) for prim_vert_index in prim.vertex_index for i in prim_vert_index])
+            else:
+                norm_index = -1
+                prim_index_index = 0
+                #index_index = 0
+                print "Index map: " + str(index_map)
+                for prim_vert_index in prim.vertex_index:
+                    if prim.normal != None:
+                        prim_norm_index = prim.normal_index[prim_index_index]
+                    for i in range(len(prim_vert_index)):
+                        vert_index = prim_vert_index[i]
+                        norm_index = prim_norm_index[i]
+                        #index_index += 1
+
+                        print "First vert index: " + str(vert_index)
+                        print "First index map entry: " + str(index_map[vert_index][0])
+
+                        # Find an entry in the index_map that matches all of the indices of the other vertex attributes
+                        while vert_index != -1 and index_map[vert_index][0][0] != -1 and index_map[vert_index][0] != (norm_index,):
+                            print "Vert index: " + str(vert_index)
+                            print "Index map entry: " + str(index_map[vert_index][0])
+                            prev_vert_index = vert_index
+                            vert_index = index_map[vert_index][1]
+                        
+                        # If a new index has to be added to the index_map, then do so
+                        if vert_index == -1:
+                            vert_index = len(jsGeom['positions']) / 3
+                            #print vert_index
+                            index_map[prev_vert_index] = (index_map[prev_vert_index][0], len(index_map))
+                            index_map.append(((norm_index,), -1))
+                            # Now add new entries for vertex attributes themselves
+                            jsGeom['positions'].extend(float(p) for p in prim.vertex[prim_vert_index[i]])
+                            print "n before: " + str(jsGeom['normals'])
+                            jsGeom['normals'].extend([float(n) for n in prim.normal[prim_norm_index[i]]])
+                            print "n after: " + str(jsGeom['normals'])
+                        elif index_map[vert_index][0][0] == -1:
+                            # Replace the (-1, -1, ...) entry with the correct attribute indexes tupple
+                            index_map[vert_index] = ((norm_index,), -1)
+                            print "n before: " + str(jsGeom['normals'])
+                            print str(vert_index*3) + ":" + str(vert_index*3+3) + " = " + str([float(n) for n in prim.normal[prim_norm_index[i]]])
+                            jsGeom['normals'][vert_index*3:vert_index*3+3] = [float(n) for n in prim.normal[prim_norm_index[i]]]
+                            print "n after: " + str(jsGeom['normals'])
+                        
+                        # Add the newly calculated vertex index (which may be the original one or a new one if the vertex has been split)
+                        jsGeom['indices'].append(int(vert_index))
+                    
+                    prim_index_index += 1
+
+            #if type(prim) is collada.triangleset.TriangleSet:
+            #    jsGeom['positions'].extend([float(val) for vert in prim.vertex for val in vert])
+            #    jsGeom['normals'].extend([float(val) for norm in prim.normal for val in norm])
+            #    jsGeom['indices'].extend([int(i) for i in prim.indices])
+            #    # TODO: jsGeom['uv']
+            #    # OLD:
+            #    #for tri in prim.triangles():                
+            #    #    jsGeom['positions'].extend([val for vert in tri.vertices for val in vert])
+            #    #    jsGeom['indices'].extend([3 * i + 0, 3 * i + 1, 3 * i + 2])
+            #    #    i += 1
+            #elif type(prim) is collada.polylist.PolygonList:
+            #    jsGeom['positions'].extend([float(val) for vert in prim.vertex for val in vert])
+            #    jsGeom['normals'].extend([float(val) for norm in prim.normal for val in norm])
+            #    jsGeom['indices'].extend([int(i) for i in prim.indices])
+            #    # TODO: jsGeom['uv']
+            #    # OLD:
+            #    #for poly in prim.polygons():
+            #    #    for tri in poly.triangles():
+            #    #        jsGeom['positions'].extend([val for vert in tri.vertices for val in vert])
+            #    #        jsGeom['indices'].extend([3 * i + 0, 3 * i + 1, 3 * i + 2])
+            #    #        i += 1
+        elif _verbose:
+            print "Warning: '" + type(prim).__name__ + "' geometry type is not yet supported by the translator"
     return jsGeom
 
 def _translate_scene_nodes(nodes):

@@ -129,13 +129,8 @@ def translate_geometry(geom):
     #    'vertices': []
     #}
 
-    # OLD: warn_nontriangles_found = False # TEMPORARY
-
     for prim in geom.primitives:
-        # TODO: support other primitive types (<trifans>, <tristrips>, <linestrips>) 
-        # TODO: support nested geometry nodes
-        # TODO: support flat shaded geometry (only smooth shading is currently supported)
-
+        # TODO: support other primitive types (<trifans>, <tristrips>, <linestrips>)
         # TODO: Use an index buffer offset when multiple triangle sets or polygon lists are used
         #       Or possibly create multiple sub-geometries instead...
         if 'positions' in jsgeom:
@@ -167,16 +162,11 @@ def translate_geometry(geom):
             if prim.normal != None:
                 index_map = [((-1,), -1)] * len(prim.vertex)
             use_index_map = (prim.normal != None)
-
-            #jsgeomBins = {}
-            
             
             if not 'positions' in jsgeom:
                 jsgeom['positions'] = []
             if not 'normals' in jsgeom and prim.normal != None:
                 jsgeom['normals'] = []
-            #if not 'indices' in jsgeom:
-            #    jsgeom['indices'] = []
 
             # Initialize the positions (since at least these must be present, possibly more if some vertices must be split)
             jsgeom['positions'].extend([float(val) for vert in prim.vertex for val in vert])
@@ -192,16 +182,9 @@ def translate_geometry(geom):
                 norm_index = -1
                 prim_index_index = 0
                 for prim_vert_index in prim.vertex_index:
-                    
-                    # OLD: The following check should never occur with a correct implementation (since the type was given as either TriangleSet or PolygonList)
-                    #if len(prim_vert_index) < 3:
-                    #    warn_invalidprimitives_found = True
-                    #    pass
-
                     if prim.normal != None:
                         prim_norm_index = prim.normal_index[prim_index_index]
-
-                    # OLD:for i in range(min(len(prim_vert_index), 3)):
+                    
                     for i in range(len(prim_vert_index)):
                         vert_index = prim_vert_index[i]
                         norm_index = prim_norm_index[i]
@@ -272,11 +255,7 @@ def translate_geometry(geom):
             jsgeom['nodes'].extend(jssubgeom['triangles'])
         if jssubgeom['lines']['indices']:
             jsgeom['nodes'].extend(jssubgeom['lines'])
-
-    # OLD: Warn if the geometry contains polys that are not triangles (no longer necessary)
-    #if _verbose and warn_nontriangles_found:
-    #    print "Warning: Geometry '" + geom.id + "' contains polygons that are not triangles. This is not yet supported."
-
+    
     return jsgeom
 
 def _translate_scene_nodes(nodes):

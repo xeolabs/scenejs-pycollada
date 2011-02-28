@@ -208,7 +208,7 @@ def translate_geometry(geom):
                 prim_index_index = 0
                 for prim_vert_index in prim.vertex_index:
                     prim_norm_index = prim.normal_index[prim_index_index] if prim.normal != None else None
-                    prim_texcoord_indexset = prim.texcoord_indexset[prim_index_index][0] if prim.texcoordset != None and len(prim.texcoord_indexset) > 0 else None
+                    prim_texcoord_indexset = prim.texcoord_indexset[0][prim_index_index] if prim.texcoordset != None and len(prim.texcoord_indexset) > 0 else None
                     for i in range(len(prim_vert_index)):
                         vert_index = prim_vert_index[i]
                         norm_index = prim_norm_index[i] if prim_norm_index != None else None
@@ -227,13 +227,13 @@ def translate_geometry(geom):
                             # Now add new entries for vertex attributes themselves
                             jsgeom['positions'].extend(float(p) for p in prim.vertex[prim_vert_index[i]])
                             if norm_index != None: jsgeom['normals'].extend([float(n) for n in prim.normal[prim_norm_index[i]]])
-                            if texcoord_indexset != None: jsgeom['uv'].extend([float(uv) for uv in prim.texcoordset[prim_texcoord_indexset[i]][0]])
+                            if texcoord_indexset != None: jsgeom['uv'].extend([float(uv) for uv in prim.texcoordset[0][prim_texcoord_indexset[i]]])
                         elif index_map[vert_index][0][0] == -1:
                             # Replace the (-1, -1, ...) entry with the correct attribute indexes tuple
                             #OLD: index_map[vert_index] = ((norm_index,), -1)
                             index_map[vert_index] = (pack_indices(norm_index, texcoord_indexset), -1)
                             if norm_index != None: jsgeom['normals'][vert_index*3:vert_index*3+3] = [float(n) for n in prim.normal[prim_norm_index[i]]]
-                            if texcoord_indexset != None: jsgeom['uv'][vert_index*2:vert_index*2+2] = [float(uv) for uv in prim.texcoordset[prim_texcoord_indexset[i]][0]]
+                            if texcoord_indexset != None: jsgeom['uv'][vert_index*2:vert_index*2+2] = [float(uv) for uv in prim.texcoordset[0][prim_texcoord_indexset[i]]]
 
                         # If the number of vertices added is > 3 then the polygon must be triangulated
                         # The shared vertices of the set of triangles that form the polygon never need to be split

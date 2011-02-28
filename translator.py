@@ -188,13 +188,11 @@ def translate_geometry(geom):
                 prim_index_index = 0
                 for prim_vert_index in prim.vertex_index:
                     prim_norm_index = prim.normal_index[prim_index_index] if prim.normal != None else None
-                    prim_texcoord_indexset = prim.texcoord_indexset[0][prim_index_index] if prim.texcoordset != None and len(prim.texcoord_indexset) > 0 else None                        
+                    prim_texcoord_indexset = prim.texcoord_indexset[0][prim_index_index] if prim.texcoordset != None and len(prim.texcoord_indexset) > 0 else None
                     for i in range(len(prim_vert_index)):
                         vert_index = prim_vert_index[i]
-                        if prim_norm_index != None:
-                            norm_index = prim_norm_index[i]
-                        if prim_texcoord_indexset != None: 
-                            texcoord_indexset = prim_texcoord_indexset[i]
+                        norm_index = prim_norm_index[i] if prim_norm_index != None else None
+                        texcoord_indexset = prim_texcoord_indexset[i] if prim_texcoord_indexset != None else None                            
 
                         # Find an entry in the index_map that matches all of the indices of the other vertex attributes
                         while vert_index != -1 and index_map[vert_index][0][0] != -1 and index_map[vert_index][0] != (norm_index,):

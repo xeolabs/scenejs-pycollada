@@ -54,7 +54,7 @@ def _float_attribute(jsnode, key, val):
     jsnode[key] = val
 
 def _rgb_attribute(jsnode, key, val):
-  if val and type(val) is list:
+  if val and type(val) is tuple:
     jsnode[key] = { 'r': val[0], 'g': val[1], 'b': val[2] }
 
 
@@ -74,7 +74,7 @@ def translate_material(mat):
     _rgb_attribute(jsmaterial, 'specularColor', mat.specular)
     _float_attribute(jsmaterial, 'shine', mat.shininess)
     _float_attribute(jsmaterial, 'alpha', mat.transparency)
-    if mat.emission and type(mat.emission) is float:
+    if mat.emission and type(mat.emission) is tuple:
         jsmaterial['emit'] = (mat.emission[0] + mat.emission[1] + mat.emission[2]) / 3.0
     # TODO: not yet supported 'reflect': mat.reflective...
     return jsmaterial

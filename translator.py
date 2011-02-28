@@ -226,12 +226,14 @@ def translate_geometry(geom):
                             index_map.append(((norm_index,), -1))
                             # Now add new entries for vertex attributes themselves
                             jsgeom['positions'].extend(float(p) for p in prim.vertex[prim_vert_index[i]])
-                            jsgeom['normals'].extend([float(n) for n in prim.normal[prim_norm_index[i]]])
+                            if norm_index != None: jsgeom['normals'].extend([float(n) for n in prim.normal[prim_norm_index[i]]])
+                            if texcoord_indexset != None: jsgeom['uv'].extend([float(uv) for uv in prim.texcoordset[prim_texcoord_indexset[i]][0]])
                         elif index_map[vert_index][0][0] == -1:
                             # Replace the (-1, -1, ...) entry with the correct attribute indexes tuple
                             #OLD: index_map[vert_index] = ((norm_index,), -1)
                             index_map[vert_index] = (pack_indices(norm_index, texcoord_indexset), -1)
-                            jsgeom['normals'][vert_index*3:vert_index*3+3] = [float(n) for n in prim.normal[prim_norm_index[i]]]
+                            if norm_index != None: jsgeom['normals'][vert_index*3:vert_index*3+3] = [float(n) for n in prim.normal[prim_norm_index[i]]]
+                            if texcoord_indexset != None: jsgeom['uv'][vert_index*2:vert_index*2+2] = [float(uv) for uv in prim.texcoordset[prim_texcoord_indexset[i]][0]]
 
                         # If the number of vertices added is > 3 then the polygon must be triangulated
                         # The shared vertices of the set of triangles that form the polygon never need to be split

@@ -65,15 +65,17 @@ class ScenejsPrettyJavascriptStream:
         """
         self.streamObj = streamObj
     
-    def _pretty_print(node):
+    def _pretty_print(self, node, indent):
         """Prints the dictionary as a readable JavaScript Object instead of raw JSON
 
         :Parameters:
           node
             A dictionary object containing the scene data
         """
-        for (k,v) in node:
-           yield k + ": " + str(v)
+        #for (k,v) in node:
+        for n in node:
+            yield "    " * indent + str(n)
+            #yield k + ": " + str(v)
     
     def write(self, node):
         """Create a Javascript output stream, where nodes are automatically created via SceneJS.createNode
@@ -84,7 +86,10 @@ class ScenejsPrettyJavascriptStream:
           node
             A dictionary object containing the scene data
         """
-        self.streamObj.write("SceneJS.createNode(" + self._pretty_print(node) + ");\n")
+        self.streamObj.write("SceneJS.createNode({\n")
+        for s in self._pretty_print(node, 1):
+            self.streamObj.write(s + ",\n")
+        self.streamObj.write("});\n")
 
 class ScenejsBinaryStream:
     """Wraps a stream object in order to produce JavaScript code (which creates all nodes in the file)"""

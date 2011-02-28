@@ -7,7 +7,7 @@ import sys
 import getopt
 import os.path
 from translator import translate
-from stream import ScenejsJsonStream, ScenejsJavascriptStream, ScenejsBinaryStream
+from stream import ScenejsJsonStream, ScenejsJavascriptStream, ScenejsPrettyJavascriptStream, ScenejsBinaryStream
 from sample import generate_html_head, generate_html_body
 
 def main(argv):
@@ -65,6 +65,9 @@ def main(argv):
             usage()
             sys.exit(2)
 
+    if pretty_print and output_format == ScenejsJavascriptStream:
+        output_format = ScenejsPrettyJavascriptStream
+
     # Check arguments for additional caveats
 
     if not args:
@@ -72,7 +75,7 @@ def main(argv):
         usage()
         sys.exit(2)
 
-    if pretty_print and output_format != ScenejsJavascriptStream:
+    if pretty_print and output_format != ScenejsPrettyJavascriptStream:
         print "Warning: Pretty print is only available with JavaScript output at this time"
 
     if detailed and generate_sample != True:

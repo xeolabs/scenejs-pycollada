@@ -2,7 +2,7 @@
 Generates sample code for outputing html with embeded models
 """
 
-def generate_html_head(title):
+def generate_html_head(title, detailed=False):
     return \
 "<!DOCTYPE HTML>\n\
 <html>\n\
@@ -10,7 +10,9 @@ def generate_html_head(title):
       " + title + "\n\
 -->\n\
 <head>\n\
-    <meta charset='utf-8' />\n\
+    <meta charset='utf-8'>\n" + ("\
+    <!-- Use Chrome Frame in Internet Explorer if it is available (this functionality can also be moved to the .htaccess file if desired) -->\n\
+    <meta http-equiv='X-UA-Compatible' content='IE=edge,chrome=1'>\n" if detailed else "\n") + "\
     <title>"+ title + "</title>\n\
 \n\
     <!-- Framework -->\n\

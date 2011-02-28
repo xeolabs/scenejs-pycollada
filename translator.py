@@ -3,22 +3,18 @@ Translate a collada object defined by PyCollada into SceneJS JSON and
 outputs the result to a stream (a file, string or network socket)
 """
 
-# TODO: We are not using correct convention for local variable names (See http://www.python.org/dev/peps/pep-0008/)
-#       It should be long_variable_name, not longVariableName...
-
-
 import collada
 import sys
 
-def translate(outputStream, colladaObj, debug = False, verbose = False):
+def translate(output_stream, collada_obj, debug = False, verbose = False):
     """
-      Translates a colladaObj given by PyCollada into SceneJS JSON and
+      Translates a collada_obj given by PyCollada into SceneJS JSON and
       outputs the result to a stream.
 
       :Parameters:
-        outputStream
+        output_stream
           A writeable stream. This object can be a File, StringIO or a Socket.
-        colladaObj
+        collada_obj
           Collada object given by PyCollada.
     """
     global _debug, _verbose
@@ -29,37 +25,37 @@ def translate(outputStream, colladaObj, debug = False, verbose = False):
 
     if _debug:
         print "Exporting libraries..."
-    for mat in colladaObj.materials:
+    for mat in collada_obj.materials:
         if _debug:
            print "Exporting material '" + mat.id + "'..."
-        jsMat = translate_material(mat)
-        if jsMat:
-            lib['nodes'].append(jsMat)
-    for geom in colladaObj.geometries:
+        jsmat = translate_material(mat)
+        if jsmat:
+            lib['nodes'].append(jsmat)
+    for geom in collada_obj.geometries:
         if _debug:
             print "Exporting geometry '" + geom.id + "'..."
-        jsGeom = translate_geometry(geom)
-        if jsGeom:
-            lib['nodes'].append(jsGeom)
+        jsgeom = translate_geometry(geom)
+        if jsgeom:
+            lib['nodes'].append(jsgeom)
 
-    outputStream.write(lib)
+    output_stream.write(lib)
 
     # Export scenes
-    for scene in [colladaObj.scene]:
+    for scene in [collada_obj.scene]:
         if _debug:
             print "Exporting scene '" + scene.id + "'..."
-        jsScene = translate_scene(scene)
-        if jsScene:
-            outputStream.write(jsScene)
+        jsscene = translate_scene(scene)
+        if jsscene:
+            output_stream.write(jsscene)
 
 # Helpers
-def _scalarAttribute(jsNode, key, val):
+def _scalar_attribute(jsnode, key, val):
   if val:
-    jsNode[key] = val
+    jsnode[key] = val
 
-def _rgbAttribute(jsNode, key, val):
+def _rgb_attribute(jsnode, key, val):
   if val:
-    jsNode[key] = { 'r': val[0], 'g': val[1], 'b': val[2] }
+    jsnode[key] = { 'r': val[0], 'g': val[1], 'b': val[2] }
 
 
 def translate_material(mat):
@@ -70,17 +66,17 @@ def translate_material(mat):
         geom
           An instance of the PyCollada Material class.
     """
-    jsMaterial = {
+    jsmaterial = {
         'type': 'material',
         'id': mat.id,
         'baseColor': { 'r': mat.diffuse[0], 'g': mat.diffuse[1], 'b': mat.diffuse[2] },
         # TODO: not yet supported 'reflect': mat.reflective...
         'emit': (mat.emission[0] + mat.emission[1] + mat.emission[2]) / 3.0
     }
-    _scalarAttribute(jsMaterial, 'shine', mat.shininess)
-    _scalarAttribute(jsMaterial, 'alpha', mat.transparency)
-    _rgbAttribute(jsMaterial, 'specularColor', mat.specular)
-    return jsMaterial
+    _scalar_attribute(jsmaterial, 'shine', mat.shininess)
+    _scalar_attribute(jsmaterial, 'alpha', mat.transparency)
+    _rgb_attribute(jsmaterial, 'specularColor', mat.specular)
+    return jsmaterial
 
 """
 def _hashPrimitive(prim)
@@ -97,7 +93,7 @@ def translate_geometry(geom):
         geom
           An instance of the PyCollada Geometry class.
     """
-    jsGeom = {
+    jsgeom = {
         'type': 'geometry',
         'id': geom.id,
         'resource': geom.id,
@@ -112,14 +108,14 @@ def translate_geometry(geom):
 
         # TODO: Use an index buffer offset when multiple triangle sets or polygon lists are used
         #       Or possibly create multiple sub-geometries instead...
-        if 'positions' in jsGeom:
+        if 'positions' in jsgeom:
             if _verbose:
                 print "Warning: Multiple primitive types in one geometry is not yet supported."
             break;
 
         if type(prim) is collada.triangleset.TriangleSet or type(prim) is collada.polylist.PolygonList: 
 
-            jsGeom['primitive'] = 'triangles'
+            jsgeom['primitive'] = 'triangles'
 
             # Note: WebGL does not support multiple sources of indices when drawing primitives, 
             #       hence it is not possible to have a different position and normal streams.
@@ -142,23 +138,23 @@ def translate_geometry(geom):
                 index_map = [((-1,), -1)] * len(prim.vertex)
             use_index_map = (prim.normal != None)
 
-            #jsGeomBins = {}
+            #jsgeomBins = {}
             
-            if not 'positions' in jsGeom:
-                jsGeom['positions'] = []
-            if not 'normals' in jsGeom and prim.normal != None:
-                jsGeom['normals'] = []
-            if not 'indices' in jsGeom:
-                jsGeom['indices'] = []
+            if not 'positions' in jsgeom:
+                jsgeom['positions'] = []
+            if not 'normals' in jsgeom and prim.normal != None:
+                jsgeom['normals'] = []
+            if not 'indices' in jsgeom:
+                jsgeom['indices'] = []
 
             # Initialize the positions (since at least these must be present, possibly more if some vertices must be split)
-            jsGeom['positions'].extend([float(val) for vert in prim.vertex for val in vert])
+            jsgeom['positions'].extend([float(val) for vert in prim.vertex for val in vert])
             if prim.normal != None:
-                jsGeom['normals'].extend([0.0] * len(prim.vertex) * 3)
+                jsgeom['normals'].extend([0.0] * len(prim.vertex) * 3)
 
             # Loop through each vertex, check if it has to be split and then write the data to the relevant buffers
             if not use_index_map:
-                jsGeom['indices'].extend([int(i) for prim_vert_index in prim.vertex_index for i in prim_vert_index])
+                jsgeom['indices'].extend([int(i) for prim_vert_index in prim.vertex_index for i in prim_vert_index])
             else:
                 norm_index = -1
                 prim_index_index = 0
@@ -185,19 +181,19 @@ def translate_geometry(geom):
                         
                         # If a new index has to be added to the index_map, then do so
                         if vert_index == -1:
-                            vert_index = len(jsGeom['positions']) / 3
+                            vert_index = len(jsgeom['positions']) / 3
                             index_map[prev_vert_index] = (index_map[prev_vert_index][0], len(index_map))
                             index_map.append(((norm_index,), -1))
                             # Now add new entries for vertex attributes themselves
-                            jsGeom['positions'].extend(float(p) for p in prim.vertex[prim_vert_index[i]])
-                            jsGeom['normals'].extend([float(n) for n in prim.normal[prim_norm_index[i]]])
+                            jsgeom['positions'].extend(float(p) for p in prim.vertex[prim_vert_index[i]])
+                            jsgeom['normals'].extend([float(n) for n in prim.normal[prim_norm_index[i]]])
                         elif index_map[vert_index][0][0] == -1:
                             # Replace the (-1, -1, ...) entry with the correct attribute indexes tupple
                             index_map[vert_index] = ((norm_index,), -1)
-                            jsGeom['normals'][vert_index*3:vert_index*3+3] = [float(n) for n in prim.normal[prim_norm_index[i]]]
+                            jsgeom['normals'][vert_index*3:vert_index*3+3] = [float(n) for n in prim.normal[prim_norm_index[i]]]
                         
                         # Add the newly calculated vertex index (which may be the original one or a new one if the vertex has been split)
-                        jsGeom['indices'].append(int(vert_index))
+                        jsgeom['indices'].append(int(vert_index))
                     
                     prim_index_index += 1
         elif _verbose:
@@ -206,7 +202,7 @@ def translate_geometry(geom):
     if _verbose and warn_nontriangles_found:
         print "Warning: Geometry '" + geom.id + "' contains polygons that are not triangles. This is not yet supported."
     
-    return jsGeom
+    return jsgeom
 
 def _translate_scene_nodes(nodes):
     """
@@ -216,29 +212,29 @@ def _translate_scene_nodes(nodes):
         node
           Any node in the collada visual scene not handled by the other methods.
     """
-    jsNodes = []
+    jsnodes = []
     for node in nodes:
         if type(node) is collada.scene.GeometryNode:
             if _verbose and len(node.materials) > 1:
                 print "Warning: Geometry '" + node.geometry.id + "' has more than one material - only the first is currently used"
-            jsGeometryInstance = { 'type': 'instance', 'target': node.geometry.id }
+            jsgeometry_instance = { 'type': 'instance', 'target': node.geometry.id }
             if len(node.materials) > 0:
-                jsMaterial = translate_material(node.materials[0].target)
-                jsMaterial['id'] = node.geometry.id + '-' + jsMaterial['id']
-                jsMaterial['nodes'] = [ jsGeometryInstance ]
-                jsNodes.append(jsMaterial)
-                #jsNodes.append({ 'type': 'instance', 'target': node.materials[0].target.id, 'nodes': [ jsGeometryInstance ] })
+                jsmaterial = translate_material(node.materials[0].target)
+                jsmaterial['id'] = node.geometry.id + '-' + jsmaterial['id']
+                jsmaterial['nodes'] = [ jsgeometry_instance ]
+                jsnodes.append(jsmaterial)
+                #jsnodes.append({ 'type': 'instance', 'target': node.materials[0].target.id, 'nodes': [ jsgeometry_instance ] })
             else:
-                jsNodes.append(jsGeometryInstance)
+                jsnodes.append(jsgeometry_instance)
         elif type(node) is collada.scene.TransformNode:
             if node.nodes:
-                jsChildNodes = _translate_scene_nodes(node.nodes)
+                jschild_nodes = _translate_scene_nodes(node.nodes)
                 # Don't append the transform node unless it has children (isolated transform nodes are redundant)
-                if jsChildNodes:
-                    jsNodes.append({ 
+                if jschild_nodes:
+                    jsnodes.append({ 
                         'type': 'matrix', 
                         'elements': [element for row in node.matrix for element in row],
-                        'nodes': jsChildNodes
+                        'nodes': jschild_nodes
                     })
         elif type(node) is collada.scene.ControllerNode:
             print "Controller Node!"
@@ -256,7 +252,7 @@ def _translate_scene_nodes(nodes):
             elif _verbose:
                 print "Warning: Unknown light mode '" + type(node.light).__name__ + "'"
             if mode:
-                jsLight = { 
+                jslight = { 
                     'type': 'light',
                     'mode': mode,
                     'color': { 'r': node.light.color[0], 'g': node.light.color[1], 'b': node.light.color[2] }
@@ -264,21 +260,21 @@ def _translate_scene_nodes(nodes):
                     #'specular': True # (default value)
                 }
                 if mode == 'point':
-                    jsLight['constantAttenuation'] = node.light.constant_att
-                    jsLight['linearAttenuation'] = node.light.linear_att
-                    jsLight['quadraticAttenuation'] = node.light.quad_att
+                    jslight['constantAttenuation'] = node.light.constant_att
+                    jslight['linearAttenuation'] = node.light.linear_att
+                    jslight['quadraticAttenuation'] = node.light.quad_att
                 
                 if mode == 'dir':
-                    jsLight['dir'] = {}
-                    jsLight['dir']['x'] = node.light.direction[0]
-                    jsLight['dir']['y'] = node.light.direction[1]
-                    jsLight['dir']['z'] = node.light.direction[2]
-                jsNodes.insert(0, jsLight)
+                    jslight['dir'] = {}
+                    jslight['dir']['x'] = node.light.direction[0]
+                    jslight['dir']['y'] = node.light.direction[1]
+                    jslight['dir']['z'] = node.light.direction[2]
+                jsnodes.insert(0, jslight)
         elif type(node) is collada.scene.ExtraNode:
             print "Extra Node!"
         else:
             print "Unknown node"
-    return jsNodes
+    return jsnodes
 
 def translate_camera(camera):
     """
@@ -309,11 +305,11 @@ def translate_scene(scene):
     cameras = scene.objects('camera')
     cam = cameras.next()
     if cam:
-        jsCamera = translate_camera(cam) 
+        jscamera = translate_camera(cam) 
     else:
         if _verbose:
             print "No camera found in the scene '" + scene.id + "' generating the default one."
-        jsCamera = {
+        jscamera = {
             'type': 'lookAt',
             'eye': { 'x': 0.0, 'y': 0.0, 'z': 0.0 },
             'look': { 'x': 0.0, 'y': 0.0, 'z': 1.0 },
@@ -330,7 +326,7 @@ def translate_scene(scene):
                 'nodes': []
             }]
         }
-    jsCamera['nodes'][0]['nodes'] = _translate_scene_nodes(scene.nodes)
+    jscamera['nodes'][0]['nodes'] = _translate_scene_nodes(scene.nodes)
     
     return {
         'type': 'scene',
@@ -345,7 +341,7 @@ def translate_scene(scene):
                 'stencil': False
             },
             'clearColor': { 'r': 0.4, 'g': 0.4, 'b': 0.4 },
-            'nodes': [ jsCamera ]
+            'nodes': [ jscamera ]
         }]
 
     }

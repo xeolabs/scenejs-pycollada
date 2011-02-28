@@ -10,7 +10,7 @@ class ScenejsJsonStream:
     """Wraps a stream object in order to produce ascii json"""
 
     # File name extension to use for this type of stream
-    fileExtension = "json"
+    file_extension = "json"
 
     def __init__(self, streamObj):
         """Create a JSON output stream
@@ -30,7 +30,7 @@ class ScenejsJavascriptStream:
     """Wraps a stream object in order to produce JavaScript code (which creates all nodes in the file)"""
 
     # File name extension to use for this type of stream
-    fileExtension = "js"
+    file_extension = "js"
 
     def __init__(self, streamObj):
         """Create a JSON output stream
@@ -54,7 +54,7 @@ class ScenejsPrettyJavascriptStream:
     """Wraps a stream object in order to produce readable JavaScript code (which creates all nodes in the file)"""
 
     # File name extension to use for this type of stream
-    fileExtension = "js"
+    file_extension = "js"
     
     def __init__(self, streamObj):
         """Create a JSON output stream
@@ -90,7 +90,7 @@ class ScenejsBinaryStream:
     """Wraps a stream object in order to produce JavaScript code (which creates all nodes in the file)"""
 
     # File name extension to use for this type of stream
-    fileExtension = "js"
+    file_extension = "js"
     
     """
     TODO: Add output streams for additional binary files

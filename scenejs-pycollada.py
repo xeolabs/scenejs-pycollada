@@ -20,12 +20,12 @@ def main(argv):
     
     debug = False
     verbose = False
-    generateSample = False
-    embedInHtml = False
-    librariesOnly = False
+    generate_sample = False
+    embed_in_html = False
+    libraries_only = False
     pretty_print = False
     detailed = False
-    outputFormat = ScenejsJavascriptStream
+    output_format = ScenejsJavascriptStream
 
     for opt, arg in opts:
         if opt in ('-h', '--help'):
@@ -36,7 +36,7 @@ def main(argv):
             debug = True
         elif opt in ('-o', '--output'):
             try: 
-                outputFormat = { 
+                output_format = { 
                   'json':   ScenejsJsonStream,
                   'js':     ScenejsJavascriptStream,
                   'binary': ScenejsBinaryStream,
@@ -44,10 +44,10 @@ def main(argv):
                   'htmljs': ScenejsJavascriptStream
                 }[arg]
                 if arg == 'htmljs':
-                    generateSample = True
+                    generate_sample = True
                 elif arg == 'html':
-                    generateSample = True
-                    embedInHtml = True
+                    generate_sample = True
+                    embed_in_html = True
             except KeyError:
                 print "Unknown output format '" + arg + "'"
                 usage()
@@ -57,7 +57,7 @@ def main(argv):
         elif opt in ('-p', '--pretty-print'): 
             pretty_print = True
         elif opt == '--libraries-only':
-            librariesOnly = True
+            libraries_only = True
         elif opt == '--detailed':
             detailed = True
         else:
@@ -72,69 +72,69 @@ def main(argv):
         usage()
         sys.exit(2)
 
-    if pretty_print and outputFormat != ScenejsJavascriptStream:
+    if pretty_print and output_format != ScenejsJavascriptStream:
         print "Warning: Pretty print is only available with JavaScript output at this time"
 
-    if detailed and generateSample != True:
+    if detailed and generate_sample != True:
         print "Warning: The --detailed flag has no effect when no sample is being generated"
 
-    #if generateSample and not librariesOnly and len(args) > 1
+    #if generate_sample and not libraries_only and len(args) > 1
     #    print "Cannot generate a sample for multiple input files without the --libraries-only option."
     #    usage()
     #    sys.exit(2)
 
     # Generate an Html file if required
-    htmlOutputStream = open('index.html','w') if generateSample else None
-    if verbose and htmlOutputStream:
+    html_output_stream = open('index.html','w') if generate_sample else None
+    if verbose and html_output_stream:
         print "Created the sample file 'index.html'"
 
     # Write Html header if required
-    if htmlOutputStream:
-        htmlOutputStream.write(generate_html_head("SceneJS sample", detailed))
+    if html_output_stream:
+        html_output_stream.write(generate_html_head("SceneJS sample", detailed))
 
     # Load and translate each file specified
-    sceneIds = []
+    scene_ids = []
     for filename in args:
         # Check whether the file exists and try to load it into a collada object
         if not os.path.isfile(filename):
             print "'" + filename + "' is not a valid file path."
             sys.exit(2)
-        colladaObj = collada.Collada(filename, ignore=[collada.DaeUnsupportedError])
+        collada_obj = collada.Collada(filename, ignore=[collada.DaeUnsupportedError])
 
         # Add every scene's id to the list of al scene ids (to be used with sample generation)
-        sceneIds.append(colladaObj.scene.id)
+        scene_ids.append(collada_obj.scene.id)
         
         # Generate an output stream
-        basePath = os.path.splitext(filename)[0]
-        outputStream = None
-        if embedInHtml and htmlOutputStream:
+        base_path = os.path.splitext(filename)[0]
+        output_stream = None
+        if embed_in_html and html_output_stream:
             # Output should continue in the html file
-            outputStream = htmlOutputStream
+            output_stream = html_output_stream
         else:
             # Create an output file to write the SceneJS scene to
-            outputFileName = basePath + '.' + outputFormat.fileExtension
-            outputStream = open(outputFileName,'w')
-            if verbose and outputStream:
-                print "Created the file '" + outputFileName + "'"
+            output_file_name = base_path + '.' + output_format.file_extension
+            output_stream = open(output_file_name,'w')
+            if verbose and output_stream:
+                print "Created the file '" + output_file_name + "'"
 
         # Translate and output the file
-        if htmlOutputStream:
-            if embedInHtml:
-                htmlOutputStream.write("    <script type='text/javascript'>\n")
+        if html_output_stream:
+            if embed_in_html:
+                html_output_stream.write("    <script type='text/javascript'>\n")
             else:
-                htmlOutputStream.write("    <script type='text/javascript' src='" + outputFileName + "'></script>\n")
+                html_output_stream.write("    <script type='text/javascript' src='" + output_file_name + "'></script>\n")
 
-        translate(outputFormat(outputStream), colladaObj, debug, verbose)
+        translate(output_format(output_stream), collada_obj, debug, verbose)
 
-        if htmlOutputStream and embedInHtml:
-           htmlOutputStream.write("</script>\n\n")
+        if html_output_stream and embed_in_html:
+           html_output_stream.write("</script>\n\n")
     
-    outputStream.flush()
+    output_stream.flush()
 
-    if htmlOutputStream and len(sceneIds) > 0:
+    if html_output_stream and len(scene_ids) > 0:
         # Todo: support multiple scenes in a sample file... (via a html drop-down)
-        htmlOutputStream.write(generate_html_body(sceneIds[0] if not librariesOnly else None))
-        htmlOutputStream.flush()
+        html_output_stream.write(generate_html_body(scene_ids[0] if not libraries_only else None))
+        html_output_stream.flush()
 
 def usage():
     print "Usage: "

@@ -214,8 +214,8 @@ def translate_geometry(geom):
                         norm_index = prim_norm_index[i] if prim_norm_index != None else None
                         texcoord_indexset = prim_texcoord_indexset[i] if prim_texcoord_indexset != None else None                            
 
-                        # Find an entry in the index_map that matches all of the indices of the other vertex attributes
-                        while vert_index != -1 and match_index_indices(index_map[vert_index][0], norm_index, texcoord_indexset):
+                        # Find an entry in the index_map that matches all of the indices of the other vertex attributes                        
+                        while vert_index != -1 and not match_index_indices(index_map[vert_index][0], norm_index, texcoord_indexset):
                             prev_vert_index = vert_index
                             vert_index = index_map[vert_index][1]
                         

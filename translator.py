@@ -102,7 +102,7 @@ def translate_geometry(geom):
     jssubgeom = {}
     jssubgeom['triangles'] = {
         'type': 'geometry',
-        'primitive': 'triangles'
+        'primitive': 'triangles',
         'id': geom.id,
         'resource': geom.id,
         'indices': []
@@ -111,7 +111,7 @@ def translate_geometry(geom):
     # Note: lines and triangles will share the same resource id as they may share vertices
     jssubgeom['lines'] = {
         'type': 'geometry',
-        'primitive': 'lines'
+        'primitive': 'lines',
         'id': geom.id + '-lines',
         'resource': geom.id,
         'indices': []
@@ -265,7 +265,7 @@ def translate_geometry(geom):
     elif count_geom_types == 1:
         jsgeom['primitive'] = 'triangles' if jssubgeom['triangles']['indices'] else 'lines'
         jsgeom['indices'] = jssubgeom[jsgeom['primitive']]['indices']
-    else
+    else:
         # TODO: This is still fairly untested...
         jsgeom['nodes'] = []
         if jssubgeom['triangles']['indices']:

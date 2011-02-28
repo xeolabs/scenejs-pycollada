@@ -49,12 +49,12 @@ def translate(output_stream, collada_obj, debug = False, verbose = False):
             output_stream.write(jsscene)
 
 # Helpers
-def _scalar_attribute(jsnode, key, val):
-  if val:
+def _float_attribute(jsnode, key, val):
+  if val and type(val) is float:
     jsnode[key] = val
 
 def _rgb_attribute(jsnode, key, val):
-  if val:
+  if val and type(val) is list:
     jsnode[key] = { 'r': val[0], 'g': val[1], 'b': val[2] }
 
 
@@ -68,14 +68,15 @@ def translate_material(mat):
     """
     jsmaterial = {
         'type': 'material',
-        'id': mat.id,
-        'baseColor': { 'r': mat.diffuse[0], 'g': mat.diffuse[1], 'b': mat.diffuse[2] },
-        # TODO: not yet supported 'reflect': mat.reflective...
-        'emit': (mat.emission[0] + mat.emission[1] + mat.emission[2]) / 3.0
+        'id': mat.id
     }
-    _scalar_attribute(jsmaterial, 'shine', mat.shininess)
-    _scalar_attribute(jsmaterial, 'alpha', mat.transparency)
+    _rgb_attribute(jsmaterial, 'baseColor', mat.diffuse)
     _rgb_attribute(jsmaterial, 'specularColor', mat.specular)
+    _float_attribute(jsmaterial, 'shine', mat.shininess)
+    _float_attribute(jsmaterial, 'alpha', mat.transparency)
+    if mat.emission and type(mat.emission) is float:
+        jsmaterial['emit'] = (mat.emission[0] + mat.emission[1] + mat.emission[2]) / 3.0
+    # TODO: not yet supported 'reflect': mat.reflective...
     return jsmaterial
 
 """
@@ -130,7 +131,7 @@ def translate_geometry(geom):
     #}
 
     for prim in geom.primitives:
-        # TODO: support other primitive types (<trifans>, <tristrips>, <linestrips>)
+        # TODO: support other primitive types (<polygons>, <trifans>, <tristrips>, <linestrips>)
         # TODO: Use an index buffer offset when multiple triangle sets or polygon lists are used
         #       Or possibly create multiple sub-geometries instead...
         if 'positions' in jsgeom:
@@ -167,11 +168,15 @@ def translate_geometry(geom):
                 jsgeom['positions'] = []
             if not 'normals' in jsgeom and prim.normal != None:
                 jsgeom['normals'] = []
+            if not 'uv' in jsgeom and prim.texcoordset != None:
+                jsgeom['uv'] = []
 
             # Initialize the positions (since at least these must be present, possibly more if some vertices must be split)
             jsgeom['positions'].extend([float(val) for vert in prim.vertex for val in vert])
             if prim.normal != None:
                 jsgeom['normals'].extend([0.0] * len(prim.vertex) * 3)
+            if prim.texcoordset != None:
+                jsgeom['uv'].extend([0.0] * len(prim.vertex) * 2)
 
             # Loop through each vertex, check if it has to be split and then write the data to the relevant buffers
             if not use_index_map:
@@ -184,7 +189,8 @@ def translate_geometry(geom):
                 for prim_vert_index in prim.vertex_index:
                     if prim.normal != None:
                         prim_norm_index = prim.normal_index[prim_index_index]
-                    
+                    # TODO: if prim.texcoord != None:
+                    #    prim_texcoord_index = prim.normal_index[prim_index_index]
                     for i in range(len(prim_vert_index)):
                         vert_index = prim_vert_index[i]
                         norm_index = prim_norm_index[i]
@@ -357,7 +363,8 @@ def translate_scene(scene):
       This makes some changes to the hierarchy, such as placing camera nodes above visual nodes.
     """
     cameras = scene.objects('camera')
-    cam = cameras.next()
+    try: cam = cameras.next()
+    except: cam = None
     if cam:
         jscamera = translate_camera(cam) 
     else:

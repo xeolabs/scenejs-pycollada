@@ -13,7 +13,7 @@ from sample import generate_html_head, generate_html_body
 def main(argv):
     # Get the command-line options given to the program
     try:                                
-        opts, args = getopt.getopt(argv, 'hvdo:', ['help', 'verbose', 'output=', 'libraries-only']) 
+        opts, args = getopt.getopt(argv, 'hvdpo:', ['help', 'verbose', 'pretty-print', 'output=', 'libraries-only', 'detailed']) 
     except getopt.GetoptError:           
         usage()                          
         sys.exit(2)
@@ -23,6 +23,8 @@ def main(argv):
     generateSample = False
     embedInHtml = False
     librariesOnly = False
+    pretty_print = False
+    detailed = False
     outputFormat = ScenejsJavascriptStream
 
     for opt, arg in opts:
@@ -52,17 +54,29 @@ def main(argv):
                 sys.exit(2)
         elif opt in ('-v', '--verbose'): 
             verbose = True
+        elif opt in ('-p', '--pretty-print'): 
+            pretty_print = True
         elif opt == '--libraries-only':
             librariesOnly = True
+        elif opt == '--detailed':
+            detailed = True
         else:
             print "Unknown option supplied '" + opt + "'"
             usage()
             sys.exit(2)
 
+    # Check arguments for additional caveats
+
     if not args:
         print "No input files specified"
         usage()
         sys.exit(2)
+
+    if pretty_print and outputFormat != ScenejsJavascriptStream:
+        print "Warning: Pretty print is only available with JavaScript output at this time"
+
+    if detailed and generateSample != True:
+        print "Warning: The --detailed flag has no effect when no sample is being generated"
 
     #if generateSample and not librariesOnly and len(args) > 1
     #    print "Cannot generate a sample for multiple input files without the --libraries-only option."
@@ -76,7 +90,7 @@ def main(argv):
 
     # Write Html header if required
     if htmlOutputStream:
-        htmlOutputStream.write(generate_html_head("SceneJS sample"))
+        htmlOutputStream.write(generate_html_head("SceneJS sample", detailed))
 
     # Load and translate each file specified
     sceneIds = []
@@ -130,6 +144,7 @@ def usage():
     print "Miscelaneous options:"
     print "  -h, --help                     Display this help message"
     print "  -v, --verbose                  Display verbose warnings and translation information"
+    print "  -p, --pretty-print             Pretty print the output"
     print "  --libraries-only               Export only libraries, excluding scenes"
     print "  --geometry-only                TODO: export only geometry"
     print "  --geometry-materials           TODO: geometry and materials only"
@@ -139,6 +154,7 @@ def usage():
     print "                                 binary - Output JavaScript code along with accompanying binary"
     print "                                 html   - Output JavaScript code inside an html file"
     print "                                 htmljs - Output JavaScript code separately along with an html file"
+    print "  --detailed                     When generating a sample, use the detailed template"
     print "  -d                             Turn on debug mode"
 
 if __name__ == "__main__":

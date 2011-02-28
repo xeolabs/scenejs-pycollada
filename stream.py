@@ -27,7 +27,7 @@ class ScenejsJsonStream:
 
 
 class ScenejsJavascriptStream:
-    """Wraps a stream object in order to produce javascript code (which creates all nodes in the file)"""
+    """Wraps a stream object in order to produce JavaScript code (which creates all nodes in the file)"""
 
     # File name extension to use for this type of stream
     fileExtension = "js"
@@ -50,9 +50,44 @@ class ScenejsJavascriptStream:
         """
         self.streamObj.write("SceneJS.createNode(" + json.dumps(node) + ");\n")
 
+class ScenejsPrettyJavascriptStream:
+    """Wraps a stream object in order to produce readable JavaScript code (which creates all nodes in the file)"""
+
+    # File name extension to use for this type of stream
+    fileExtension = "js"
+    
+    def __init__(self, streamObj):
+        """Create a JSON output stream
+
+        :Parameters:
+          streamObj
+            A file, string IO or network socket object
+        """
+        self.streamObj = streamObj
+    
+    def _pretty_print(node):
+        """Prints the dictionary as a readable JavaScript Object instead of raw JSON
+
+        :Parameters:
+          node
+            A dictionary object containing the scene data
+        """
+        for (k,v) in node:
+           yield k + ": " + str(v)
+    
+    def write(self, node):
+        """Create a Javascript output stream, where nodes are automatically created via SceneJS.createNode
+
+        :Parameters:
+          streamObj
+            A file, string IO or network socket object
+          node
+            A dictionary object containing the scene data
+        """
+        self.streamObj.write("SceneJS.createNode(" + self._pretty_print(node) + ");\n")
 
 class ScenejsBinaryStream:
-    """Wraps a stream object in order to produce javascript code (which creates all nodes in the file)"""
+    """Wraps a stream object in order to produce JavaScript code (which creates all nodes in the file)"""
 
     # File name extension to use for this type of stream
     fileExtension = "js"

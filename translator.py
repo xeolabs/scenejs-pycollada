@@ -86,6 +86,23 @@ def _hashPrimitive(prim)
         hash += prim.material.id
 """
 
+# Helpers for translate_geometry
+def pack_indices(norm_index, texcoord_indexset):
+    # TODO: Support more than one texture coord in the future
+    p = []
+    if norm_index != None: p.append(norm_index)
+    #if texcoord_indexset != None and len(texcoord_indexset) > 0: p.append(texcoord_indexset[0])
+    if texcoord_indexset != None: p.append(texcoord_indexset)
+    return tuple(p)
+
+def match_index_indices(index_entry, norm_index, texcoord_indexset):
+    p = pack_indices(norm_index, texcoord_indexset)
+    if index_entry == p: return True
+    if norm_index != None and index_entry[0] != -1 and index_entry[0] != p[0]: return False
+    if texcoord_indexset != None and index_entry[1] != -1 and index_entry[1] != p[1]: return False
+    # todo: match color indices
+    return True
+
 def translate_geometry(geom):
     """
       Translates a collada geometry node into one or more SceneJS geometry nodes.
@@ -160,8 +177,11 @@ def translate_geometry(geom):
             # TODO: support other attributes (sources) in a similar manner
 
             # Initialize the index mapping table for the normals
-            if prim.normal != None:
-                index_map = [((-1,), -1)] * len(prim.vertex)
+            if prim.normal != None or (prim.texcoordset != None and len(prim.texcoordset) > 0):
+                packed_empty_index = pack_indices(-1 if prim.normal != None else None,\
+                                                  -1 if prim.texcoordset != None and len(prim.texcoordset) > 0 else None)
+                #                                  (-1,) if prim.texcoordset != None and len(prim.texcoordset) > 0 else None)
+                index_map = [(packed_empty_index, -1)] * len(prim.vertex)
             use_index_map = (prim.normal != None)
             
             if not 'positions' in jsgeom:
@@ -188,14 +208,14 @@ def translate_geometry(geom):
                 prim_index_index = 0
                 for prim_vert_index in prim.vertex_index:
                     prim_norm_index = prim.normal_index[prim_index_index] if prim.normal != None else None
-                    prim_texcoord_indexset = prim.texcoord_indexset[0][prim_index_index] if prim.texcoordset != None and len(prim.texcoord_indexset) > 0 else None
+                    prim_texcoord_indexset = prim.texcoord_indexset[prim_index_index][0] if prim.texcoordset != None and len(prim.texcoord_indexset) > 0 else None
                     for i in range(len(prim_vert_index)):
                         vert_index = prim_vert_index[i]
                         norm_index = prim_norm_index[i] if prim_norm_index != None else None
                         texcoord_indexset = prim_texcoord_indexset[i] if prim_texcoord_indexset != None else None                            
 
                         # Find an entry in the index_map that matches all of the indices of the other vertex attributes
-                        while vert_index != -1 and index_map[vert_index][0][0] != -1 and index_map[vert_index][0] != (norm_index,):
+                        while vert_index != -1 and match_index_indices(index_map[vert_index][0], norm_index, texcoord_indexset):
                             prev_vert_index = vert_index
                             vert_index = index_map[vert_index][1]
                         
@@ -208,8 +228,9 @@ def translate_geometry(geom):
                             jsgeom['positions'].extend(float(p) for p in prim.vertex[prim_vert_index[i]])
                             jsgeom['normals'].extend([float(n) for n in prim.normal[prim_norm_index[i]]])
                         elif index_map[vert_index][0][0] == -1:
-                            # Replace the (-1, -1, ...) entry with the correct attribute indexes tupple
-                            index_map[vert_index] = ((norm_index,), -1)
+                            # Replace the (-1, -1, ...) entry with the correct attribute indexes tuple
+                            #OLD: index_map[vert_index] = ((norm_index,), -1)
+                            index_map[vert_index] = (pack_indices(norm_index, texcoord_indexset), -1)
                             jsgeom['normals'][vert_index*3:vert_index*3+3] = [float(n) for n in prim.normal[prim_norm_index[i]]]
 
                         # If the number of vertices added is > 3 then the polygon must be triangulated

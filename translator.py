@@ -98,11 +98,41 @@ def translate_geometry(geom):
         'id': geom.id,
         'resource': geom.id,
     }
+    
+    jssubgeom = {}
+    jssubgeom['triangles'] = {
+        'type': 'geometry',
+        'primitive': 'triangles'
+        'id': geom.id,
+        'resource': geom.id,
+        'indices': []
+    }
 
-    warn_nontriangles_found = False # TEMPORARY
+    # Note: lines and triangles will share the same resource id as they may share vertices
+    jssubgeom['lines'] = {
+        'type': 'geometry',
+        'primitive': 'lines'
+        'id': geom.id + '-lines',
+        'resource': geom.id,
+        'indices': []
+    }
+    
+    # TODO: Point geometry is not currently supported due to the limitations of the Collada format (also see the notes lower down in this function)
+    ## Note: a new resource id is created for point clouds since it usually does not make much sense to use indices with points
+    ##       it is possible that points may share vertices with polygons or lines but this feature is unlikely to be supported by
+    ##       exporters (such as blender). Blender currently exports points without any indexes...
+    #jssubgeom['points'] = {
+    #    'type': 'geometry',
+    #    'primitive': 'points'
+    #    'id': geom.id + '-points',
+    #    'resource': geom.id + '-points',
+    #    'vertices': []
+    #}
+
+    # OLD: warn_nontriangles_found = False # TEMPORARY
 
     for prim in geom.primitives:
-        # TODO: support other primitive types
+        # TODO: support other primitive types (<trifans>, <tristrips>, <linestrips>) 
         # TODO: support nested geometry nodes
         # TODO: support flat shaded geometry (only smooth shading is currently supported)
 
@@ -113,9 +143,9 @@ def translate_geometry(geom):
                 print "Warning: Multiple primitive types in one geometry is not yet supported."
             break;
 
-        if type(prim) is collada.triangleset.TriangleSet or type(prim) is collada.polylist.PolygonList: 
-
-            jsgeom['primitive'] = 'triangles'
+        if type(prim) is collada.triangleset.TriangleSet \
+              or type(prim) is collada.polylist.PolygonList \
+              or type(prim) is collada.lineset.LineSet:
 
             # Note: WebGL does not support multiple sources of indices when drawing primitives, 
             #       hence it is not possible to have a different position and normal streams.
@@ -140,12 +170,13 @@ def translate_geometry(geom):
 
             #jsgeomBins = {}
             
+            
             if not 'positions' in jsgeom:
                 jsgeom['positions'] = []
             if not 'normals' in jsgeom and prim.normal != None:
                 jsgeom['normals'] = []
-            if not 'indices' in jsgeom:
-                jsgeom['indices'] = []
+            #if not 'indices' in jsgeom:
+            #    jsgeom['indices'] = []
 
             # Initialize the positions (since at least these must be present, possibly more if some vertices must be split)
             jsgeom['positions'].extend([float(val) for vert in prim.vertex for val in vert])
@@ -154,17 +185,18 @@ def translate_geometry(geom):
 
             # Loop through each vertex, check if it has to be split and then write the data to the relevant buffers
             if not use_index_map:
+                if not 'indices' in jsgeom:
+                    jsgeom['indices'] = []
                 jsgeom['indices'].extend([int(i) for prim_vert_index in prim.vertex_index for i in prim_vert_index])
             else:
                 norm_index = -1
                 prim_index_index = 0
                 for prim_vert_index in prim.vertex_index:
                     
-                    # TEMPORARY
-                    #if _verbose and len(prim_vert_index) != 3:
-                    #    warn_nontriangles_found = True
-                    if len(prim_vert_index) < 3: 
-                        pass # todo: these can't be divided into triangles, they should be added to lines / points geometry
+                    # OLD: The following check should never occur with a correct implementation (since the type was given as either TriangleSet or PolygonList)
+                    #if len(prim_vert_index) < 3:
+                    #    warn_invalidprimitives_found = True
+                    #    pass
 
                     if prim.normal != None:
                         prim_norm_index = prim.normal_index[prim_index_index]
@@ -197,21 +229,54 @@ def translate_geometry(geom):
                         # (This is so by definition: The polygon is a single surface, like a triangle)
                         # To triangulate we simply add the first and last vertex to the geometry again along with the new vertex.
                         if i > 2:
-                            first_i = len(jsgeom['indices']) - (i - 2) * 3
-                            last_i = len(jsgeom['indices']) - 1
-                            jsgeom['indices'].append(jsgeom['indices'][first_i])
-                            jsgeom['indices'].append(jsgeom['indices'][last_i])
+                            first_i = len(jssubgeom['triangles']['indices']) - (i - 2) * 3
+                            last_i = len(jssubgeom['triangles']['indices']) - 1
+                            jssubgeom['triangles']['indices'].append(jssubgeom['triangles']['indices'][first_i])
+                            jssubgeom['triangles']['indices'].append(jssubgeom['triangles']['indices'][last_i])
 
                         # Add the newly calculated vertex index (which may be the original one or a new one if the vertex has been split)
-                        jsgeom['indices'].append(int(vert_index))
-                    
+                        if len(prim_vert_index) > 2:
+                            jssubgeom['triangles']['indices'].append(int(vert_index))
+                        elif len(prim_vert_index) == 2:
+                            jssubgeom['lines']['indices'].append(int(vert_index))
                     prim_index_index += 1
+                
+                # TODO: Unfortunately Collada does not support a 'points' geometry type. When blender exports points 
+                #       it simply exports them as vertices. However, Collada does not recognize these as a type of 'geometry',
+                #       hence there is no way to dependably link these points to the attributes (colors, normals etc) that describe them.
+                #       It is also a rather intensive operation to check whether any stand-alone points exist. 
+                #       For this reason we could add a flag in the future to check for independent vertices, but the functionality
+                #       will not be enabled by default (the fraction of models where points are intermingled with other types
+                #       does not justify the overhead of doing this check for all models, ideally Collada should add 'points' 
+                #       geometry type instead).
+                ## Test whether all of the vertices in the model has been used (for polygons or lines)
+                ## If not, then these vertices will be added as points geometry
+                #all_vertices_used = True
+                #for i in range(len(jssubgeom['triangles']['indices'])):
+                #    if index_map[i][0][0] == -1:
         elif _verbose:
-            print "Warning: '" + type(prim).__name__ + "' geometry type is not yet supported by the translator"
+            print "Warning: '" + type(prim).__name__ + "' geometry type is not yet supported by the translator."
 
-    if _verbose and warn_nontriangles_found:
-        print "Warning: Geometry '" + geom.id + "' contains polygons that are not triangles. This is not yet supported."
-    
+    # Integrate all the different primitives into a parent geometry node with zero or more sub-geometries
+    count_geom_types = (1 if jssubgeom['triangles']['indices'] else 0) + (1 if jssubgeom['lines']['indices'] else 0)
+    if count_geom_types == 0:
+        if _verbose:
+            print "Warning: No recognizable primitives found in Geometry '" + geom.id + "'."
+    elif count_geom_types == 1:
+        jsgeom['primitive'] = 'triangles' if jssubgeom['triangles']['indices'] else 'lines'
+        jsgeom['indices'] = jssubgeom[jsgeom['primitive']]['indices']
+    else
+        # TODO: This is still fairly untested...
+        jsgeom['nodes'] = []
+        if jssubgeom['triangles']['indices']:
+            jsgeom['nodes'].extend(jssubgeom['triangles'])
+        if jssubgeom['lines']['indices']:
+            jsgeom['nodes'].extend(jssubgeom['lines'])
+
+    # OLD: Warn if the geometry contains polys that are not triangles (no longer necessary)
+    #if _verbose and warn_nontriangles_found:
+    #    print "Warning: Geometry '" + geom.id + "' contains polygons that are not triangles. This is not yet supported."
+
     return jsgeom
 
 def _translate_scene_nodes(nodes):

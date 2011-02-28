@@ -188,14 +188,14 @@ def translate_geometry(geom):
                 jsgeom['positions'] = []
             if not 'normals' in jsgeom and prim.normal != None:
                 jsgeom['normals'] = []
-            if not 'uv' in jsgeom and prim.texcoordset != None:
+            if not 'uv' in jsgeom and prim.texcoordset != None and len(prim.texcoordset) > 0:
                 jsgeom['uv'] = []
 
             # Initialize the positions (since at least these must be present, possibly more if some vertices must be split)
             jsgeom['positions'].extend([float(val) for vert in prim.vertex for val in vert])
             if prim.normal != None:
                 jsgeom['normals'].extend([0.0] * len(prim.vertex) * 3)
-            if prim.texcoordset != None:
+            if prim.texcoordset != None and len(prim.texcoordset) > 0:
                 jsgeom['uv'].extend([0.0] * len(prim.vertex) * 2)
 
             # Loop through each vertex, check if it has to be split and then write the data to the relevant buffers

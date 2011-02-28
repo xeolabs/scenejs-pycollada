@@ -1,378 +1,139 @@
 <?xml version="1.0" encoding="utf-8"?>
-<COLLADA version="1.4.0" xmlns="http://www.collada.org/2005/11/COLLADASchema">
-	<asset>
-		<contributor>
-			<author>Illusoft Collada 1.4.0 plugin for Blender - http://colladablender.illusoft.com</author>
-			<authoring_tool>Blender v:249 - Illusoft Collada Exporter v:0.3.162</authoring_tool>
-			<comments></comments>
-			<copyright></copyright>
-			<source_data>file://</source_data>
-		</contributor>
-		<created>2011-02-28T19:46:28.099791</created>
-		<modified>2011-02-28T19:46:28.099827</modified>
-		<unit meter="0.01" name="centimeter"/>
-		<up_axis>Z_UP</up_axis>
-	</asset>
-	<library_effects>
-		<effect id="Plain-fx" name="Plain-fx">
-			<profile_COMMON>
-				<newparam sid="tex_jpg-surface">
-					<surface type="2D">
-						<init_from>tex_jpg-img</init_from>
-						<format>A8R8G8B8</format>
-					</surface>
-				</newparam>
-				<newparam sid="tex_jpg-sampler">
-					<sampler2D>
-						<source>tex_jpg-surface</source>
-						<minfilter>LINEAR_MIPMAP_LINEAR</minfilter>
-						<magfilter>LINEAR</magfilter>
-					</sampler2D>
-				</newparam>
-				<technique sid="blender">
-					<phong>
-						<emission>
-							<color>0.00000 0.00000 0.00000 1</color>
-						</emission>
-						<ambient>
-							<color>0.40000 0.40000 0.40000 1</color>
-						</ambient>
-						<diffuse>
-							<texture texcoord="CHANNEL1" texture="tex_jpg-sampler"/>
-						</diffuse>
-						<specular>
-							<color>0.50000 0.50000 0.50000 1</color>
-						</specular>
-						<shininess>
-							<float>12.5</float>
-						</shininess>
-						<reflective>
-							<color>1.00000 1.00000 1.00000 1</color>
-						</reflective>
-						<reflectivity>
-							<float>0.0</float>
-						</reflectivity>
-						<transparent>
-							<color>1 1 1 1</color>
-						</transparent>
-						<transparency>
-							<float>0.0</float>
-						</transparency>
-					</phong>
-				</technique>
-			</profile_COMMON>
-		</effect>
-	</library_effects>
-	<library_images>
-		<image id="tex_jpg-img" name="tex_jpg-img">
-			<init_from>tex.jpg</init_from>
-		</image>
-	</library_images>
-	<library_materials>
-		<material id="Plain" name="Plain">
-			<instance_effect url="#Plain-fx"/>
-		</material>
-	</library_materials>
-	<library_geometries>
-		<geometry id="Cube_001" name="Cube_001">
-			<mesh>
-				<source id="Cube_001-Position">
-					<float_array count="12" id="Cube_001-Position-array">1.00000 1.00000 -1.00000 1.00000 -1.00000 -1.00000 1.00000 1.00000 1.00000 1.00000 -1.00000 1.00000</float_array>
-					<technique_common>
-						<accessor count="4" source="#Cube_001-Position-array" stride="3">
-							<param type="float" name="X"></param>
-							<param type="float" name="Y"></param>
-							<param type="float" name="Z"></param>
-						</accessor>
-					</technique_common>
-				</source>
-				<source id="Cube_001-Normals">
-					<float_array count="3" id="Cube_001-Normals-array">1.00000 -0.00000 0.00000</float_array>
-					<technique_common>
-						<accessor count="1" source="#Cube_001-Normals-array" stride="3">
-							<param type="float" name="X"></param>
-							<param type="float" name="Y"></param>
-							<param type="float" name="Z"></param>
-						</accessor>
-					</technique_common>
-				</source>
-				<source id="Cube_001-UV">
-					<float_array count="8" id="Cube_001-UV-array">1.00000 0.00000 1.00000 1.00000 0.00000 1.00000 0.00000 0.00000</float_array>
-					<technique_common>
-						<accessor count="4" source="#Cube_001-UV-array" stride="2">
-							<param type="float" name="S"></param>
-							<param type="float" name="T"></param>
-						</accessor>
-					</technique_common>
-				</source>
-				<source id="Cube_001-color">
-					<float_array count="16" id="Cube_001-color-array">1.00000 1.00000 1.00000 1.00000 1.00000 1.00000 1.00000 1.00000 1.00000 1.00000 1.00000 1.00000 1.00000 1.00000 1.00000 1.00000</float_array>
-					<technique_common>
-						<accessor count="4" source="#Cube_001-color-array" stride="4">
-							<param type="float" name="R"></param>
-							<param type="float" name="G"></param>
-							<param type="float" name="B"></param>
-							<param type="float" name="A"></param>
-						</accessor>
-					</technique_common>
-				</source>
-				<vertices id="Cube_001-Vertex">
-					<input semantic="POSITION" source="#Cube_001-Position"/>
-				</vertices>
-				<polygons count="1" material="Plain">
-					<input offset="0" semantic="VERTEX" source="#Cube_001-Vertex"/>
-					<input offset="1" semantic="NORMAL" source="#Cube_001-Normals"/>
-					<input offset="2" semantic="TEXCOORD" source="#Cube_001-UV"/>
-					<input offset="3" semantic="COLOR" source="#Cube_001-color"/>
-					<p>0 0 0 0 2 0 1 1 3 0 2 2 1 0 3 3</p>
-				</polygons>
-			</mesh>
-		</geometry>
-		<geometry id="Cube_001-Geometry" name="Cube_001-Geometry">
-			<mesh>
-				<source id="Cube_001-Geometry-Position">
-					<float_array count="12" id="Cube_001-Geometry-Position-array">1.00000 1.00000 -1.00000 1.00000 -1.00000 -1.00000 1.00000 1.00000 1.00000 1.00000 -1.00000 1.00000</float_array>
-					<technique_common>
-						<accessor count="4" source="#Cube_001-Geometry-Position-array" stride="3">
-							<param type="float" name="X"></param>
-							<param type="float" name="Y"></param>
-							<param type="float" name="Z"></param>
-						</accessor>
-					</technique_common>
-				</source>
-				<source id="Cube_001-Geometry-Normals">
-					<float_array count="3" id="Cube_001-Geometry-Normals-array">1.00000 -0.00000 0.00000</float_array>
-					<technique_common>
-						<accessor count="1" source="#Cube_001-Geometry-Normals-array" stride="3">
-							<param type="float" name="X"></param>
-							<param type="float" name="Y"></param>
-							<param type="float" name="Z"></param>
-						</accessor>
-					</technique_common>
-				</source>
-				<source id="Cube_001-Geometry-UV">
-					<float_array count="8" id="Cube_001-Geometry-UV-array">1.00000 0.00000 1.00000 1.00000 0.00000 1.00000 0.00000 0.00000</float_array>
-					<technique_common>
-						<accessor count="4" source="#Cube_001-Geometry-UV-array" stride="2">
-							<param type="float" name="S"></param>
-							<param type="float" name="T"></param>
-						</accessor>
-					</technique_common>
-				</source>
-				<source id="Cube_001-Geometry-color">
-					<float_array count="16" id="Cube_001-Geometry-color-array">1.00000 1.00000 1.00000 1.00000 1.00000 1.00000 1.00000 1.00000 1.00000 1.00000 1.00000 1.00000 1.00000 1.00000 1.00000 1.00000</float_array>
-					<technique_common>
-						<accessor count="4" source="#Cube_001-Geometry-color-array" stride="4">
-							<param type="float" name="R"></param>
-							<param type="float" name="G"></param>
-							<param type="float" name="B"></param>
-							<param type="float" name="A"></param>
-						</accessor>
-					</technique_common>
-				</source>
-				<vertices id="Cube_001-Geometry-Vertex">
-					<input semantic="POSITION" source="#Cube_001-Geometry-Position"/>
-				</vertices>
-				<polygons count="1" material="Plain">
-					<input offset="0" semantic="VERTEX" source="#Cube_001-Geometry-Vertex"/>
-					<input offset="1" semantic="NORMAL" source="#Cube_001-Geometry-Normals"/>
-					<input offset="2" semantic="TEXCOORD" source="#Cube_001-Geometry-UV"/>
-					<input offset="3" semantic="COLOR" source="#Cube_001-Geometry-color"/>
-					<p>0 0 0 0 2 0 1 1 3 0 2 2 1 0 3 3</p>
-				</polygons>
-			</mesh>
-		</geometry>
-		<geometry id="Cube_001-Geometry001" name="Cube_001-Geometry001">
-			<mesh>
-				<source id="Cube_001-Geometry001-Position">
-					<float_array count="12" id="Cube_001-Geometry001-Position-array">1.00000 1.00000 -1.00000 1.00000 -1.00000 -1.00000 1.00000 1.00000 1.00000 1.00000 -1.00000 1.00000</float_array>
-					<technique_common>
-						<accessor count="4" source="#Cube_001-Geometry001-Position-array" stride="3">
-							<param type="float" name="X"></param>
-							<param type="float" name="Y"></param>
-							<param type="float" name="Z"></param>
-						</accessor>
-					</technique_common>
-				</source>
-				<source id="Cube_001-Geometry001-Normals">
-					<float_array count="3" id="Cube_001-Geometry001-Normals-array">1.00000 -0.00000 0.00000</float_array>
-					<technique_common>
-						<accessor count="1" source="#Cube_001-Geometry001-Normals-array" stride="3">
-							<param type="float" name="X"></param>
-							<param type="float" name="Y"></param>
-							<param type="float" name="Z"></param>
-						</accessor>
-					</technique_common>
-				</source>
-				<source id="Cube_001-Geometry001-UV">
-					<float_array count="8" id="Cube_001-Geometry001-UV-array">1.00000 0.00000 1.00000 1.00000 0.00000 1.00000 0.00000 0.00000</float_array>
-					<technique_common>
-						<accessor count="4" source="#Cube_001-Geometry001-UV-array" stride="2">
-							<param type="float" name="S"></param>
-							<param type="float" name="T"></param>
-						</accessor>
-					</technique_common>
-				</source>
-				<source id="Cube_001-Geometry001-color">
-					<float_array count="16" id="Cube_001-Geometry001-color-array">1.00000 1.00000 1.00000 1.00000 1.00000 1.00000 1.00000 1.00000 1.00000 1.00000 1.00000 1.00000 1.00000 1.00000 1.00000 1.00000</float_array>
-					<technique_common>
-						<accessor count="4" source="#Cube_001-Geometry001-color-array" stride="4">
-							<param type="float" name="R"></param>
-							<param type="float" name="G"></param>
-							<param type="float" name="B"></param>
-							<param type="float" name="A"></param>
-						</accessor>
-					</technique_common>
-				</source>
-				<vertices id="Cube_001-Geometry001-Vertex">
-					<input semantic="POSITION" source="#Cube_001-Geometry001-Position"/>
-				</vertices>
-				<polygons count="1" material="Plain">
-					<input offset="0" semantic="VERTEX" source="#Cube_001-Geometry001-Vertex"/>
-					<input offset="1" semantic="NORMAL" source="#Cube_001-Geometry001-Normals"/>
-					<input offset="2" semantic="TEXCOORD" source="#Cube_001-Geometry001-UV"/>
-					<input offset="3" semantic="COLOR" source="#Cube_001-Geometry001-color"/>
-					<p>0 0 0 0 2 0 1 1 3 0 2 2 1 0 3 3</p>
-				</polygons>
-			</mesh>
-		</geometry>
-	</library_geometries>
-	<library_visual_scenes>
-		<visual_scene id="Scene" name="Scene">
-			<node layer="L1" id="Cube" name="Cube">
-				<translate sid="translate">0.00000 0.00000 0.00000</translate>
-				<rotate sid="rotateZ">0 0 1 0.00000</rotate>
-				<rotate sid="rotateY">0 1 0 -0.00000</rotate>
-				<rotate sid="rotateX">1 0 0 0.00000</rotate>
-				<scale sid="scale">1.00000 1.00000 1.00000</scale>
-				<instance_geometry url="#Cube_001">
-					<bind_material>
-						<technique_common>
-							<instance_material symbol="Plain" target="#Plain">
-								<bind_vertex_input input_semantic="TEXCOORD" input_set="1" semantic="CHANNEL1"/>
-							</instance_material>
-						</technique_common>
-					</bind_material>
-				</instance_geometry>
-			</node>
-		</visual_scene>
-		<visual_scene id="Scene_001" name="Scene_001">
-			<node layer="L1" id="Cube-Node" name="Cube-Node">
-				<translate sid="translate">0.00000 0.00000 0.00000</translate>
-				<rotate sid="rotateZ">0 0 1 0.00000</rotate>
-				<rotate sid="rotateY">0 1 0 -0.00000</rotate>
-				<rotate sid="rotateX">1 0 0 0.00000</rotate>
-				<scale sid="scale">1.00000 1.00000 1.00000</scale>
-				<instance_geometry url="#Cube_001-Geometry">
-					<bind_material>
-						<technique_common>
-							<instance_material symbol="Plain" target="#Plain">
-								<bind_vertex_input input_semantic="TEXCOORD" input_set="1" semantic="CHANNEL1"/>
-							</instance_material>
-						</technique_common>
-					</bind_material>
-				</instance_geometry>
-			</node>
-		</visual_scene>
-		<visual_scene id="Scene001" name="Scene001">
-			<node layer="L1" id="Cube-Node_001" name="Cube-Node_001">
-				<translate sid="translate">0.00000 0.00000 0.00000</translate>
-				<rotate sid="rotateZ">0 0 1 0.00000</rotate>
-				<rotate sid="rotateY">0 1 0 -0.00000</rotate>
-				<rotate sid="rotateX">1 0 0 0.00000</rotate>
-				<scale sid="scale">1.00000 1.00000 1.00000</scale>
-				<instance_geometry url="#Cube_001-Geometry001">
-					<bind_material>
-						<technique_common>
-							<instance_material symbol="Plain" target="#Plain">
-								<bind_vertex_input input_semantic="TEXCOORD" input_set="1" semantic="CHANNEL1"/>
-							</instance_material>
-						</technique_common>
-					</bind_material>
-				</instance_geometry>
-			</node>
-		</visual_scene>
-	</library_visual_scenes>
-	<library_physics_materials>
-		<physics_material id="Cube-PhysicsMaterial" name="Cube-PhysicsMaterial">
-			<technique_common>
-				<dynamic_friction>0.5</dynamic_friction>
-				<restitution>0.0</restitution>
-				<static_friction>0.5</static_friction>
-			</technique_common>
-		</physics_material>
-		<physics_material id="Cube-Node-PhysicsMaterial" name="Cube-Node-PhysicsMaterial">
-			<technique_common>
-				<dynamic_friction>0.5</dynamic_friction>
-				<restitution>0.0</restitution>
-				<static_friction>0.5</static_friction>
-			</technique_common>
-		</physics_material>
-		<physics_material id="Cube-Node_001-PhysicsMaterial" name="Cube-Node_001-PhysicsMaterial">
-			<technique_common>
-				<dynamic_friction>0.5</dynamic_friction>
-				<restitution>0.0</restitution>
-				<static_friction>0.5</static_friction>
-			</technique_common>
-		</physics_material>
-	</library_physics_materials>
-	<library_physics_models>
-		<physics_model id="Scene-PhysicsModel" name="Scene-PhysicsModel">
-			<rigid_body name="Cube-RigidBody" sid="Cube-RigidBody">
-				<technique_common>
-					<dynamic>false</dynamic>
-					<mass>0</mass>
-					<instance_physics_material url="#Cube-PhysicsMaterial"/>
-					<shape>
-						<instance_geometry url="#Cube_001"/>
-					</shape>
-				</technique_common>
-			</rigid_body>
-		</physics_model>
-		<physics_model id="Scene_001-PhysicsModel" name="Scene_001-PhysicsModel">
-			<rigid_body name="Cube-Node-RigidBody" sid="Cube-Node-RigidBody">
-				<technique_common>
-					<dynamic>false</dynamic>
-					<mass>0</mass>
-					<instance_physics_material url="#Cube-Node-PhysicsMaterial"/>
-					<shape>
-						<instance_geometry url="#Cube_001-Geometry"/>
-					</shape>
-				</technique_common>
-			</rigid_body>
-		</physics_model>
-		<physics_model id="Scene001-PhysicsModel" name="Scene001-PhysicsModel">
-			<rigid_body name="Cube-Node_001-RigidBody" sid="Cube-Node_001-RigidBody">
-				<technique_common>
-					<dynamic>false</dynamic>
-					<mass>0</mass>
-					<instance_physics_material url="#Cube-Node_001-PhysicsMaterial"/>
-					<shape>
-						<instance_geometry url="#Cube_001-Geometry001"/>
-					</shape>
-				</technique_common>
-			</rigid_body>
-		</physics_model>
-	</library_physics_models>
-	<library_physics_scenes>
-		<physics_scene id="Scene-Physics" name="Scene-Physics">
-			<instance_physics_model url="#Scene-PhysicsModel">
-				<instance_rigid_body body="Cube-RigidBody" target="#Cube"/>
-			</instance_physics_model>
-		</physics_scene>
-		<physics_scene id="Scene_001-Physics" name="Scene_001-Physics">
-			<instance_physics_model url="#Scene_001-PhysicsModel">
-				<instance_rigid_body body="Cube-Node-RigidBody" target="#Cube-Node"/>
-			</instance_physics_model>
-		</physics_scene>
-		<physics_scene id="Scene001-Physics" name="Scene001-Physics">
-			<instance_physics_model url="#Scene001-PhysicsModel">
-				<instance_rigid_body body="Cube-Node_001-RigidBody" target="#Cube-Node_001"/>
-			</instance_physics_model>
-		</physics_scene>
-	</library_physics_scenes>
-	<scene>
-		<instance_physics_scene url="#Scene001-Physics"/>
-		<instance_visual_scene url="#Scene001"/>
-	</scene>
+<COLLADA xmlns="http://www.collada.org/2005/11/COLLADASchema" version="1.4.1">
+  <asset>
+    <contributor>
+      <author>Blender User</author>
+      <authoring_tool>Blender 2.56.0 r34074</authoring_tool>
+    </contributor>
+    <created>2011-02-28T20:25:56</created>
+    <modified>2011-02-28T20:25:56</modified>
+    <unit name="centimeter" meter="0.01"/>
+    <up_axis>Z_UP</up_axis>
+  </asset>
+  <library_cameras/>
+  <library_lights/>
+  <library_images>
+    <image id="tex_jpg" name="tex_jpg">
+      <init_from>projects/active/development/programs/scenejs-pycollada/test/tex.jpg</init_from>
+    </image>
+  </library_images>
+  <library_effects>
+    <effect id="Plain-effect">
+      <profile_COMMON>
+        <newparam sid="tex_jpg-surface">
+          <surface type="2D">
+            <init_from>tex_jpg</init_from>
+          </surface>
+        </newparam>
+        <newparam sid="tex_jpg-sampler">
+          <sampler2D>
+            <source>tex_jpg-surface</source>
+          </sampler2D>
+        </newparam>
+        <technique sid="common">
+          <phong>
+            <emission>
+              <color>0 0 0 1</color>
+            </emission>
+            <ambient>
+              <color>0.4 0.4 0.4 1</color>
+            </ambient>
+            <diffuse>
+              <texture texture="tex_jpg-sampler" texcoord="CHANNEL1"/>
+            </diffuse>
+            <specular>
+              <color>0.25 0.25 0.25 1</color>
+            </specular>
+            <shininess>
+              <float>12</float>
+            </shininess>
+            <index_of_refraction>
+              <float>1</float>
+            </index_of_refraction>
+          </phong>
+        </technique>
+        <extra>
+          <technique profile="GOOGLEEARTH">
+            <show_double_sided>1</show_double_sided>
+          </technique>
+        </extra>
+      </profile_COMMON>
+      <extra><technique profile="MAX3D"><double_sided>1</double_sided></technique></extra>
+    </effect>
+  </library_effects>
+  <library_materials>
+    <material id="Plain" name="Plain">
+      <instance_effect url="#Plain-effect"/>
+    </material>
+  </library_materials>
+  <library_geometries>
+    <geometry id="Cube_007-mesh">
+      <mesh>
+        <source id="Cube_007-mesh-positions">
+          <float_array id="Cube_007-mesh-positions-array" count="12">1 1 -1 1 -1 -1 1 1 1 1 -1 1</float_array>
+          <technique_common>
+            <accessor source="#Cube_007-mesh-positions-array" count="4" stride="3">
+              <param name="X" type="float"/>
+              <param name="Y" type="float"/>
+              <param name="Z" type="float"/>
+            </accessor>
+          </technique_common>
+        </source>
+        <source id="Cube_007-mesh-normals">
+          <float_array id="Cube_007-mesh-normals-array" count="3">1 0 0</float_array>
+          <technique_common>
+            <accessor source="#Cube_007-mesh-normals-array" count="1" stride="3">
+              <param name="X" type="float"/>
+              <param name="Y" type="float"/>
+              <param name="Z" type="float"/>
+            </accessor>
+          </technique_common>
+        </source>
+        <source id="Cube_007-mesh-map-0">
+          <float_array id="Cube_007-mesh-map-0-array" count="8">1 0 1 1 0 1 0 0</float_array>
+          <technique_common>
+            <accessor source="#Cube_007-mesh-map-0-array" count="4" stride="2">
+              <param name="S" type="float"/>
+              <param name="T" type="float"/>
+            </accessor>
+          </technique_common>
+        </source>
+        <vertices id="Cube_007-mesh-vertices">
+          <input semantic="POSITION" source="#Cube_007-mesh-positions"/>
+        </vertices>
+        <polylist material="Plain" count="1">
+          <input semantic="VERTEX" source="#Cube_007-mesh-vertices" offset="0"/>
+          <input semantic="NORMAL" source="#Cube_007-mesh-normals" offset="1"/>
+          <input semantic="TEXCOORD" source="#Cube_007-mesh-map-0" offset="2" set="0"/>
+          <vcount>4 </vcount>
+          <p>0 0 0 2 0 1 3 0 2 1 0 3</p>
+        </polylist>
+      </mesh>
+    </geometry>
+  </library_geometries>
+  <library_animations/>
+  <library_controllers/>
+  <library_visual_scenes>
+    <visual_scene id="Scene" name="Scene">
+      <node id="Cube" type="NODE">
+        <translate sid="location">0 0 0</translate>
+        <rotate sid="rotationZ">0 0 1 0</rotate>
+        <rotate sid="rotationY">0 1 0 0</rotate>
+        <rotate sid="rotationX">1 0 0 0</rotate>
+        <scale sid="scale">1 1 1</scale>
+        <instance_geometry url="#Cube_007-mesh">
+          <bind_material>
+            <technique_common>
+              <instance_material symbol="Plain" target="#Plain">
+                <bind_vertex_input semantic="Cube_007-UV" input_semantic="TEXCOORD" input_set="0"/>
+              </instance_material>
+            </technique_common>
+          </bind_material>
+        </instance_geometry>
+      </node>
+    </visual_scene>
+  </library_visual_scenes>
+  <scene>
+    <instance_visual_scene url="#Scene"/>
+  </scene>
 </COLLADA>

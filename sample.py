@@ -4,7 +4,7 @@ Generates sample code for outputing html with embeded models
 
 def generate_html_head(title, detailed=False):
     return \
-"<!DOCTYPE HTML>\n\
+"<!doctype html>\n\
 <html>\n\
 <!--\n\
       " + title + "\n\

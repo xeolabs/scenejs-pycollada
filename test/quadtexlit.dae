@@ -5,13 +5,37 @@
       <author>Blender User</author>
       <authoring_tool>Blender 2.56.0 r34074</authoring_tool>
     </contributor>
-    <created>2011-02-28T20:25:56</created>
-    <modified>2011-02-28T20:25:56</modified>
+    <created>2011-02-28T20:44:42</created>
+    <modified>2011-02-28T20:44:42</modified>
     <unit name="centimeter" meter="0.01"/>
     <up_axis>Z_UP</up_axis>
   </asset>
-  <library_cameras/>
-  <library_lights/>
+  <library_cameras>
+    <camera id="Camera-camera" name="Camera.001">
+      <optics>
+        <technique_common>
+          <perspective>
+            <xfov>49.13434</xfov>
+            <aspect_ratio>1.777778</aspect_ratio>
+            <znear>0.1</znear>
+            <zfar>100</zfar>
+          </perspective>
+        </technique_common>
+      </optics>
+    </camera>
+  </library_cameras>
+  <library_lights>
+    <light id="Point-light" name="Point">
+      <technique_common>
+        <point>
+          <color>1 1 1</color>
+          <constant_attenuation>1</constant_attenuation>
+          <linear_attenuation>0</linear_attenuation>
+          <quadratic_attenuation>8e-4</quadratic_attenuation>
+        </point>
+      </technique_common>
+    </light>
+  </library_lights>
   <library_images>
     <image id="tex_jpg" name="tex_jpg">
       <init_from>projects/active/development/programs/scenejs-pycollada/test/tex.jpg</init_from>
@@ -115,6 +139,22 @@
   <library_controllers/>
   <library_visual_scenes>
     <visual_scene id="Scene" name="Scene">
+      <node id="Point" type="NODE">
+        <translate sid="location">4.199146 -0.8274235 3.742127</translate>
+        <rotate sid="rotationZ">0 0 1 0</rotate>
+        <rotate sid="rotationY">0 1 0 0</rotate>
+        <rotate sid="rotationX">1 0 0 0</rotate>
+        <scale sid="scale">1 1 1</scale>
+        <instance_light url="#Point-light"/>
+      </node>
+      <node id="Camera" type="NODE">
+        <translate sid="location">8.049283 -8.6566 4.807251</translate>
+        <rotate sid="rotationZ">0 0 1 42.57274</rotate>
+        <rotate sid="rotationY">0 1 0 -10.61353</rotate>
+        <rotate sid="rotationX">1 0 0 67.26283</rotate>
+        <scale sid="scale">1 1 1</scale>
+        <instance_camera url="#Camera-camera"/>
+      </node>
       <node id="Cube" type="NODE">
         <translate sid="location">0 0 0</translate>
         <rotate sid="rotationZ">0 0 1 0</rotate>

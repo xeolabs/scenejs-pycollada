@@ -159,18 +159,18 @@ def translate_geometry(geom):
                 norm_index = -1
                 prim_index_index = 0
                 for prim_vert_index in prim.vertex_index:
-                  
-                     # TEMPORARY
-                    if _verbose and len(prim_vert_index) != 3:
-                        warn_nontriangles_found = True
-                        if len(prim_vert_index) < 3: 
-                            pass
+                    
+                    # TEMPORARY
+                    #if _verbose and len(prim_vert_index) != 3:
+                    #    warn_nontriangles_found = True
+                    if len(prim_vert_index) < 3: 
+                        pass # todo: these can't be divided into triangles, they should be added to lines / points geometry
 
                     if prim.normal != None:
                         prim_norm_index = prim.normal_index[prim_index_index]
 
-                    # TODO for i in range(len(prim_vert_index)):
-                    for i in range(min(len(prim_vert_index), 3)):
+                    # OLD:for i in range(min(len(prim_vert_index), 3)):
+                    for i in range(len(prim_vert_index)):
                         vert_index = prim_vert_index[i]
                         norm_index = prim_norm_index[i]
 
@@ -191,7 +191,17 @@ def translate_geometry(geom):
                             # Replace the (-1, -1, ...) entry with the correct attribute indexes tupple
                             index_map[vert_index] = ((norm_index,), -1)
                             jsgeom['normals'][vert_index*3:vert_index*3+3] = [float(n) for n in prim.normal[prim_norm_index[i]]]
-                        
+
+                        # If the number of vertices added is > 3 then the polygon must be triangulated
+                        # The shared vertices of the set of triangles that form the polygon never need to be split
+                        # (This is so by definition: The polygon is a single surface, like a triangle)
+                        # To triangulate we simply add the first and last vertex to the geometry again along with the new vertex.
+                        if i > 2:
+                            first_i = len(jsgeom['indices']) - (i - 2) * 3
+                            last_i = len(jsgeom['indices']) - 1
+                            jsgeom['indices'].append(jsgeom['indices'][first_i])
+                            jsgeom['indices'].append(jsgeom['indices'][last_i])
+
                         # Add the newly calculated vertex index (which may be the original one or a new one if the vertex has been split)
                         jsgeom['indices'].append(int(vert_index))
                     

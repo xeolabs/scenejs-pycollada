@@ -30,7 +30,7 @@ Updating pycollada
 
 PyCollada has been added to the project as a git submodule. To fetch the latest version of pycollada, you can use the following git command in the root directory of scenejs-pycollada.
 
-    git submodule update
+    git submodule update --init
 
 Resources
 =========

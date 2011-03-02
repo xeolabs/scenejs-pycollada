@@ -47,13 +47,9 @@ PyCollada has been added to the project as a git submodule. To fetch the latest 
     git submodule update --init
 
 PyCollada depends on the NumPy module. If you're on a unixy platform there's a good chance that you'll already have NumPy and you can skip this step.
-If it turns out that you don't have NumPy the easiest way of installing it is with the simple command:
 
-    pip install pycollada
-
-If you don't have 'pip' installed on your system either you can also fetch an appropriate build from the NumPy website, http://numpy.scipy.org
-(See http://www.scipy.org/Download for a list of all builds including unofficial releases)
-
+However, if you don't have NumPy installed on your system, fetch an appropriate release from the NumPy website, http://numpy.scipy.org (http://www.scipy.org/Download has the list of all builds including unofficial releases)
+Note that on 64bit windows you'll most likely need to fetch an unofficial build of NumPy from http://www.lfd.uci.edu/~gohlke/pythonlibs/
 
 Building
 ========

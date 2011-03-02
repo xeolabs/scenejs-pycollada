@@ -21,7 +21,8 @@ Features
 ** Positions
 ** Normals
 ** Texture coordinates (one set only at the moment)
-* Loads the following light nodes: <point>, 
+* Loads the following light nodes: <point>, <directional>
+* Loads basic materials (no shaders yet)
 * Generates sample files (html + javascript)
 
 Please test and report bugs!

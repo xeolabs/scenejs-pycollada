@@ -345,12 +345,17 @@ def _translate_scene_nodes(nodes):
                     jslight['constantAttenuation'] = node.light.constant_att
                     jslight['linearAttenuation'] = node.light.linear_att
                     jslight['quadraticAttenuation'] = node.light.quad_att
+                    #jslight['pos'] = { 'x': node.light.position[0], 'y': node.light.position[1], 'z': node.light.position[2] }
+                    jslight['pos'] = {}
+                    jslight['pos']['x'] = float(node.light.position[0])
+                    jslight['pos']['y'] = float(node.light.position[1])
+                    jslight['pos']['z'] = float(node.light.position[2])
                 
                 if mode == 'dir':
                     jslight['dir'] = {}
-                    jslight['dir']['x'] = node.light.direction[0]
-                    jslight['dir']['y'] = node.light.direction[1]
-                    jslight['dir']['z'] = node.light.direction[2]
+                    jslight['dir']['x'] = float(node.light.direction[0])
+                    jslight['dir']['y'] = float(node.light.direction[1])
+                    jslight['dir']['z'] = float(node.light.direction[2])
                 jsnodes.insert(0, jslight)
         elif type(node) is collada.scene.ExtraNode:
             print "Extra Node!"

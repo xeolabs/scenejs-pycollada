@@ -17,6 +17,7 @@ Features
 * Loads the following geometry nodes: <polylist>, <triangles>, <lines>
 ** However, it is still missing the following: <polygons>
 * Supports vertex splitting when a shared vertex has conflicting attributes. (This is required for flat shading or split texture coordinates for example)
+* Import multiple primitive types in one mesh using subgeometries
 * Supports the following vertex attributes: 
 ** Positions
 ** Normals
@@ -33,6 +34,7 @@ Work in progress
 * Pretty printing for javascript files
 * Ambient light sources (not supported by SceneJS yet)
 * Point light sources (it is not known to what extent these work currently)
+* Multiple subgeometries (this is mostly implemented, but doesn't seem to work in SceneJS for some reason)
 
 Installing python
 =================

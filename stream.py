@@ -65,19 +65,49 @@ class ScenejsPrettyJavascriptStream:
         """
         self.streamobj = streamobj
     
+    def _pretty_print_value(self, v, indent):
+        """Pretty prints a single value
+
+        :Parameters:
+          node
+            A dictionary object containing the scene data
+          indent
+            The indentation level
+        """
+        if isinstance(v, list):
+            output = "[\n" if len(v) > 0 and isinstance(v[0], dict) else "["
+            for lv in v:
+                output += self._pretty_print_value(lv, indent)
+                if isinstance(lv, dict): 
+                    output += "\n" 
+            output += ("    " * indent + "],") if len(v) > 0 and isinstance(v[0], dict) else "],"
+            return output
+        elif isinstance(v, dict):
+            output = "    " * (indent+1) + "{\n" 
+            for s in self._pretty_print(v, indent+2):
+                output += s
+            output += "    " * (indent+1) + "},"
+            return output
+        elif isinstance(v, str):
+            return "'" + v + "',"
+        elif isinstance(v, bool):
+            return "true, " if v else "false, "
+        else:
+            return str(v) + ","
+    
     def _pretty_print(self, node, indent):
         """Prints the dictionary as a readable JavaScript Object instead of raw JSON
 
         :Parameters:
           node
             A dictionary object containing the scene data
+          indent
+            The indentation level
         """
         # TODO: This function should also order the keys in a logical way...
-
-        #for (k,v) in node:
-        for n in node:
-            yield "    " * indent + str(n)
-            #yield k + ": " + str(v)
+        for k,v in node.items():
+            output = "    " * indent + k + (":\n" if isinstance(v,dict) else ": ")
+            yield output + self._pretty_print_value(v, indent) + "\n"
     
     def write(self, node):
         """Create a Javascript output stream, where nodes are automatically created via SceneJS.createNode
@@ -90,7 +120,7 @@ class ScenejsPrettyJavascriptStream:
         """
         self.streamobj.write("SceneJS.createNode({\n")
         for s in self._pretty_print(node, 1):
-            self.streamobj.write(s + ",\n")
+            self.streamobj.write(s)
         self.streamobj.write("});\n")
 
 class ScenejsBinaryStream:

@@ -5,7 +5,7 @@ outputs the result to a stream (a file, string or network socket)
 
 import collada
 import sys
-from numpy import array, append
+from numpy import array, append, array_equal
 
 def translate(output_stream, collada_obj, debug = False, verbose = False):
     """
@@ -212,8 +212,11 @@ def translate_geometry(geom):
 
                         # Find an entry in the index_map that matches all of the indices of the other vertex attributes
                         #while vert_index != -1 and not match_index_indices(index_map[vert_index][0], norm_index, texcoord_indexset):
-                        #print str(vert_index) + ": Is " + str(index_map[vert_index][0]) + " == " + str(attr_indexes[1:]) + "?"
-                        while vert_index != -1 and not (index_map[vert_index][:-1] == attr_indexes[1:] or index_map[vert_index][0] == [-1]):
+                        #print attr_indexes[1:]
+                        #print index_map[vert_index][:-1]
+                        #print str(vert_index) + ": Is " + str(index_map[vert_index][:-1]) + " == " + str(attr_indexes[1:]) + " = " + str(array_equal(index_map[vert_index][:-1], attr_indexes[1:]))
+                        #print index_map[vert_index][0]
+                        while vert_index != -1 and not (array_equal(index_map[vert_index][:-1], attr_indexes[1:]) or index_map[vert_index][0] == -1):
                             prev_vert_index = vert_index
                             vert_index = index_map[vert_index][-1]
                             #print "vert index " + str(vert_index)
@@ -224,8 +227,7 @@ def translate_geometry(geom):
                         if vert_index == -1:
                             vert_index = len(jsgeom['positions']) / 3
                             index_map[prev_vert_index][-1] = len(index_map)
-                            index_map = append(index_map, append(attr_indexes[1:], [-1]))
-                            print index_map
+                            index_map = append(index_map, [append(attr_indexes[1:], [-1])], axis=0)
 
                             # Now add new entries for vertex attributes themselves
                             #jsgeom['positions'].extend(float(p) for p in prim.vertex[prim_vert_index[i]])

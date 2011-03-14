@@ -130,7 +130,6 @@ def main(argv):
             else:
                 html_output_stream.write("    <script type='text/javascript' src='" + output_file_name + "'></script>\n")
 
-        print output_format
         serializer = output_format(output_stream)
         #TODO: serializer.tabstring = ' ' * tabsize if tabsize else "    "
         translate(serializer, collada_obj, debug, verbose)

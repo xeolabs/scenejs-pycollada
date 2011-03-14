@@ -212,7 +212,7 @@ def translate_geometry(geom):
                         # Find an entry in the index_map that matches all of the indices of the other vertex attributes
                         #while vert_index != -1 and not match_index_indices(index_map[vert_index][0], norm_index, texcoord_indexset):
                         #print str(vert_index) + ": Is " + str(index_map[vert_index][0]) + " == " + str(attr_indexes[1:]) + "?"
-                        while vert_index != -1 and not (index_map[vert_index][0] == attr_indexes[1:]):
+                        while vert_index != -1 and not (index_map[vert_index][0] == attr_indexes[1:] or index_map[vert_index][0] == [-1]):
                             prev_vert_index = vert_index
                             vert_index = index_map[vert_index][1]
                         
@@ -242,7 +242,6 @@ def translate_geometry(geom):
                         if vertex_number > 2:
                             first_i = len(jssubgeom['indices']) - (vertex_number - 2) * 3
                             last_i = len(jssubgeom['indices']) - 1
-                            print "indices: " + str(jssubgeom['indices'])
                             jssubgeom['indices'].append(jssubgeom['indices'][first_i])
                             jssubgeom['indices'].append(jssubgeom['indices'][last_i])
 

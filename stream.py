@@ -48,7 +48,10 @@ class ScenejsJavascriptStream:
           streamobj
             A file, string IO or network socket object
         """
-        self.streamobj.write("SceneJS.createNode(" + json.dumps(node) + ");\n")
+        try:
+            self.streamobj.write("SceneJS.createNode(" + json.dumps(node) + ");\n")
+        except TypeError as e:
+            print "ERROR: " + str(e)
 
 class ScenejsPrettyJavascriptStream:
     """Wraps a stream object in order to produce readable JavaScript code (which creates all nodes in the file)"""

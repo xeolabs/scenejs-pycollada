@@ -87,21 +87,8 @@ def _hashPrimitive(prim)
 """
 
 # Helpers for translate_geometry
-def pack_indices(norm_index, texcoord_indexset):
-    # TODO: Support more than one texture coord in the future
-    p = []
-    if norm_index != None: p.append(norm_index)
-    #if texcoord_indexset != None and len(texcoord_indexset) > 0: p.append(texcoord_indexset[0])
-    if texcoord_indexset != None: p.append(texcoord_indexset)
-    return tuple(p)
-
-def match_index_indices(index_entry, norm_index, texcoord_indexset):
-    p = pack_indices(norm_index, texcoord_indexset)
-    if index_entry == p: return True
-    if norm_index != None and index_entry[0] != -1 and index_entry[0] != p[0]: return False
-    if texcoord_indexset != None and index_entry[1] != -1 and index_entry[1] != p[1]: return False
-    # todo: match color indices
-    return True
+#def match_index_indices(index_entry, indexes):
+#    return True
 
 def translate_geometry(geom):
     """
@@ -182,15 +169,16 @@ def translate_geometry(geom):
 
             # Initialize the index mapping table for vertex attributes
 
-            if prim.normal != None or (prim.texcoordset != None and len(prim.texcoordset) > 0):
-                packed_empty_index = pack_indices(-1 if prim.normal != None else None,\
-                                                  -1 if prim.texcoordset != None and len(prim.texcoordset) > 0 else None)
-                #                                 (-1,) if prim.texcoordset != None and len(prim.texcoordset) > 0 else None)
-                index_map = [(packed_empty_index, -1)] * len(prim.vertex)
+            # OLD:
+            #if prim.normal != None or (prim.texcoordset != None and len(prim.texcoordset) > 0):
+            #    packed_empty_index = pack_indices(-1 if prim.normal != None else None,\
+            #                                      -1 if prim.texcoordset != None and len(prim.texcoordset) > 0 else None)
+            #    #                                 (-1,) if prim.texcoordset != None and len(prim.texcoordset) > 0 else None)
+            #    index_map = [(packed_empty_index, -1)] * len(prim.vertex)
+            index_map = [[[-1], -1]] * len(prim.vertex)
             use_index_map = (prim.normal != None or (prim.texcoordset != None and len(prim.texcoordset) > 0))
-
+            
             # Initialize jsgeom structure
-
             if not 'positions' in jsgeom:
                 jsgeom['positions'] = []
             if not 'normals' in jsgeom and prim.normal != None:
@@ -211,47 +199,55 @@ def translate_geometry(geom):
             else:
                 norm_index = -1
                 prim_index_index = 0
-                for prim_vert_index in prim.vertex_index:
+                for prim_poly_index in prim.polyindex:
                     prim_norm_index = prim.normal_index[prim_index_index] if prim.normal != None else None
                     prim_texcoord_indexset = prim.texcoord_indexset[0][prim_index_index] if prim.texcoordset != None and len(prim.texcoord_indexset) > 0 else None
-                    for i in range(len(prim_vert_index)):
-                        vert_index = prim_vert_index[i]
-                        norm_index = prim_norm_index[i] if prim_norm_index != None else None
-                        texcoord_indexset = prim_texcoord_indexset[i] if prim_texcoord_indexset != None else None                            
+                    for poly_index in range(prim_poly_index[0], prim_poly_index[1]):
+                        attr_indexes = prim.index[poly_index]
+                        vert_index = attr_indexes[0] # We use the vertex index as the primary index to determine whether vertex attributes should be shared
+                        #vert_index = prim_vert_index[i]
+                        #orm_index = prim_norm_index[i] if prim_norm_index != None else None
+                        #texcoord_indexset = prim_texcoord_indexset[i] if prim_texcoord_indexset != None else None                            
 
-                        # Find an entry in the index_map that matches all of the indices of the other vertex attributes                        
-                        while vert_index != -1 and not match_index_indices(index_map[vert_index][0], norm_index, texcoord_indexset):
+                        # Find an entry in the index_map that matches all of the indices of the other vertex attributes
+                        #while vert_index != -1 and not match_index_indices(index_map[vert_index][0], norm_index, texcoord_indexset):
+                        #print str(vert_index) + ": Is " + str(index_map[vert_index][0]) + " == " + str(attr_indexes[1:]) + "?"
+                        while vert_index != -1 and not (index_map[vert_index][0] == attr_indexes[1:]):
                             prev_vert_index = vert_index
                             vert_index = index_map[vert_index][1]
                         
                         # If a new index has to be added to the index_map, then do so
+                        # I.e. vert_index will be -1 if we could not match it to an existing entry in the index_map
                         if vert_index == -1:
                             vert_index = len(jsgeom['positions']) / 3
-                            index_map[prev_vert_index] = (index_map[prev_vert_index][0], len(index_map))
-                            index_map.append(((norm_index,), -1))
+                            index_map[prev_vert_index][1] = len(index_map)
+                            index_map.append([attr_indexes[1:], -1])
                             # Now add new entries for vertex attributes themselves
-                            jsgeom['positions'].extend(float(p) for p in prim.vertex[prim_vert_index[i]])
-                            if norm_index != None: jsgeom['normals'].extend([float(n) for n in prim.normal[prim_norm_index[i]]])
-                            if texcoord_indexset != None: jsgeom['uv'].extend([float(uv) for uv in prim.texcoordset[0][prim_texcoord_indexset[i]]])
+                            #jsgeom['positions'].extend(float(p) for p in prim.vertex[prim_vert_index[i]])
+                            jsgeom['positions'].extend(float(p) for p in prim.vertex[attr_indexes[0]])
+                            #TODO: if norm_index != None: jsgeom['normals'].extend([float(n) for n in prim.normal[prim_norm_index[i]]])
+                            #TODO: if texcoord_indexset != None: jsgeom['uv'].extend([float(uv) for uv in prim.texcoordset[0][prim_texcoord_indexset[i]]])
                         elif index_map[vert_index][0][0] == -1:
-                            # Replace the (-1, -1, ...) entry with the correct attribute indexes tuple
-                            #OLD: index_map[vert_index] = ((norm_index,), -1)
-                            index_map[vert_index] = (pack_indices(norm_index, texcoord_indexset), -1)
-                            if norm_index != None: jsgeom['normals'][vert_index*3:vert_index*3+3] = [float(n) for n in prim.normal[prim_norm_index[i]]]
-                            if texcoord_indexset != None: jsgeom['uv'][vert_index*2:vert_index*2+2] = [float(uv) for uv in prim.texcoordset[0][prim_texcoord_indexset[i]]]
+                            # Replace the [-1] entry with the correct attribute indexes
+                            #index_map[vert_index] = (pack_indices(norm_index, texcoord_indexset), -1)
+                            index_map[vert_index][0] = attr_indexes[1:]
+                            #TODO: if norm_index != None: jsgeom['normals'][vert_index*3:vert_index*3+3] = [float(n) for n in prim.normal[prim_norm_index[i]]]
+                            #TODO: if texcoord_indexset != None: jsgeom['uv'][vert_index*2:vert_index*2+2] = [float(uv) for uv in prim.texcoordset[0][prim_texcoord_indexset[i]]]
 
                         # If the number of vertices added is > 3 then the polygon must be triangulated
                         # The shared vertices of the set of triangles that form the polygon never need to be split
                         # (This is so by definition: The polygon is a single surface, like a triangle)
                         # To triangulate we simply add the first and last vertex to the geometry again along with the new vertex.
-                        if i > 2:
-                            first_i = len(jssubgeom['indices']) - (i - 2) * 3
+                        vertex_number = poly_index - prim_poly_index[0]  # I.e. number 0 for the first vertex in the poly
+                        if vertex_number > 2:
+                            first_i = len(jssubgeom['indices']) - (vertex_number - 2) * 3
                             last_i = len(jssubgeom['indices']) - 1
+                            print "indices: " + str(jssubgeom['indices'])
                             jssubgeom['indices'].append(jssubgeom['indices'][first_i])
                             jssubgeom['indices'].append(jssubgeom['indices'][last_i])
 
                         # Add the newly calculated vertex index (which may be the original one or a new one if the vertex has been split)
-                        if len(prim_vert_index) >= 2:
+                        if prim_poly_index[1] - prim_poly_index[0] >= 2:
                             jssubgeom['indices'].append(int(vert_index))
                     prim_index_index += 1        
         elif _verbose:
@@ -317,7 +313,7 @@ def _translate_scene_nodes(nodes):
                 if jschild_nodes:
                     jsnodes.append({ 
                         'type': 'matrix', 
-                        'elements': [element for row in node.matrix for element in row],
+                        'elements': [float(element) for row in node.matrix for element in row],
                         'nodes': jschild_nodes
                     })
         elif type(node) is collada.scene.ControllerNode:
@@ -371,17 +367,17 @@ def translate_camera(camera):
     """
     return {
         'type': 'lookAt',
-        'eye': { 'x': camera.position[0], 'y': camera.position[1], 'z': camera.position[2] },
-        'look': { 'x': camera.position[0] + camera.direction[0], 'y': camera.position[1] + camera.direction[1], 'z': camera.position[2] + camera.direction[2] },
-        'up': { 'x': camera.up[0], 'y': camera.up[1], 'z': camera.up[2] },
+        'eye': { 'x': float(camera.position[0]), 'y': float(camera.position[1]), 'z': float(camera.position[2]) },
+        'look': { 'x': float(camera.position[0] + camera.direction[0]), 'y': float(camera.position[1] + camera.direction[1]), 'z': float(camera.position[2] + camera.direction[2]) },
+        'up': { 'x': float(camera.up[0]), 'y': float(camera.up[1]), 'z': float(camera.up[2]) },
         'nodes': [{ 
             'type': 'camera',
             'optics': {
                  'type': 'perspective', #TODO: type of camera can't be retrieved a.t.m. assuming "perspective" for now
-                 'fovy': camera.fov,
+                 'fovy': float(camera.fov),
                  'aspect': 1.0, # TODO: aspect ratio is not currently available
-                 'near': camera.near,
-                 'far': camera.far
+                 'near': float(camera.near),
+                 'far': float(camera.far)
             }
         }]
     }

@@ -13,7 +13,7 @@ from sample import generate_html_head, generate_html_body
 def main(argv):
     # Get the command-line options given to the program
     try:                                
-        opts, args = getopt.getopt(argv, 'hvdpo:', ['help', 'verbose', 'pretty-print', 'output=', 'libraries-only', 'detailed']) 
+        opts, args = getopt.getopt(argv, 'hvdpo:', ['help', 'verbose', 'pretty-print', 'output=', 'libraries-only', 'detailed', 'tabsize=']) 
     except getopt.GetoptError:           
         usage()                          
         sys.exit(2)
@@ -25,6 +25,7 @@ def main(argv):
     libraries_only = False
     pretty_print = False
     detailed = False
+    tabsize = None
     output_format = ScenejsJavascriptStream
 
     for opt, arg in opts:
@@ -69,7 +70,6 @@ def main(argv):
         output_format = ScenejsPrettyJavascriptStream
 
     # Check arguments for additional caveats
-
     if not args:
         print "No input files specified"
         usage()
@@ -80,6 +80,9 @@ def main(argv):
 
     if detailed and generate_sample != True:
         print "Warning: The --detailed flag has no effect when no sample is being generated"
+
+    if tabsize != None and not pretty_print:
+        print "Warning: The --tabsize flag has no effect without the --pretty_print flag"
 
     #if generate_sample and not libraries_only and len(args) > 1
     #    print "Cannot generate a sample for multiple input files without the --libraries-only option."
@@ -127,7 +130,10 @@ def main(argv):
             else:
                 html_output_stream.write("    <script type='text/javascript' src='" + output_file_name + "'></script>\n")
 
-        translate(output_format(output_stream), collada_obj, debug, verbose)
+        print output_format
+        serializer = output_format(output_stream)
+        #TODO: serializer.tabstring = ' ' * tabsize if tabsize else "    "
+        translate(serializer, collada_obj, debug, verbose)
 
         if html_output_stream and embed_in_html:
            html_output_stream.write("</script>\n\n")

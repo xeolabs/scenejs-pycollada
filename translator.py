@@ -5,6 +5,7 @@ outputs the result to a stream (a file, string or network socket)
 
 import collada
 import sys
+from numpy import array, append
 
 def translate(output_stream, collada_obj, debug = False, verbose = False):
     """
@@ -175,7 +176,7 @@ def translate_geometry(geom):
             #                                      -1 if prim.texcoordset != None and len(prim.texcoordset) > 0 else None)
             #    #                                 (-1,) if prim.texcoordset != None and len(prim.texcoordset) > 0 else None)
             #    index_map = [(packed_empty_index, -1)] * len(prim.vertex)
-            index_map = [[[-1], -1]] * len(prim.vertex)
+            index_map = array([[-1, -1]] * len(prim.vertex))
             use_index_map = (prim.normal != None or (prim.texcoordset != None and len(prim.texcoordset) > 0))
             
             # Initialize jsgeom structure
@@ -204,7 +205,7 @@ def translate_geometry(geom):
                     prim_texcoord_indexset = prim.texcoord_indexset[0][prim_index_index] if prim.texcoordset != None and len(prim.texcoord_indexset) > 0 else None
                     for poly_index in range(prim_poly_index[0], prim_poly_index[1]):
                         attr_indexes = prim.index[poly_index]
-                        vert_index = attr_indexes[0] # We use the vertex index as the primary index to determine whether vertex attributes should be shared
+                        vert_index = attr_indexes[0] # We use the first attribute index as the primary index to determine whether vertex attributes should be shared (this is probably, but not neccesarily the "position" index)
                         #vert_index = prim_vert_index[i]
                         #orm_index = prim_norm_index[i] if prim_norm_index != None else None
                         #texcoord_indexset = prim_texcoord_indexset[i] if prim_texcoord_indexset != None else None                            
@@ -212,27 +213,44 @@ def translate_geometry(geom):
                         # Find an entry in the index_map that matches all of the indices of the other vertex attributes
                         #while vert_index != -1 and not match_index_indices(index_map[vert_index][0], norm_index, texcoord_indexset):
                         #print str(vert_index) + ": Is " + str(index_map[vert_index][0]) + " == " + str(attr_indexes[1:]) + "?"
-                        while vert_index != -1 and not (index_map[vert_index][0] == attr_indexes[1:] or index_map[vert_index][0] == [-1]):
+                        while vert_index != -1 and not (index_map[vert_index][:-1] == attr_indexes[1:] or index_map[vert_index][0] == [-1]):
                             prev_vert_index = vert_index
-                            vert_index = index_map[vert_index][1]
-                        
+                            vert_index = index_map[vert_index][-1]
+                            #print "vert index " + str(vert_index)
+
                         # If a new index has to be added to the index_map, then do so
                         # I.e. vert_index will be -1 if we could not match it to an existing entry in the index_map
+                        #print str(vert_index) + "  " + str(index_map[vert_index]) + str(index_map)
                         if vert_index == -1:
                             vert_index = len(jsgeom['positions']) / 3
-                            index_map[prev_vert_index][1] = len(index_map)
-                            index_map.append([attr_indexes[1:], -1])
+                            index_map[prev_vert_index][-1] = len(index_map)
+                            index_map = append(index_map, append(attr_indexes[1:], [-1]))
+                            print index_map
+
                             # Now add new entries for vertex attributes themselves
                             #jsgeom['positions'].extend(float(p) for p in prim.vertex[prim_vert_index[i]])
-                            jsgeom['positions'].extend(float(p) for p in prim.vertex[attr_indexes[0]])
-                            #TODO: if norm_index != None: jsgeom['normals'].extend([float(n) for n in prim.normal[prim_norm_index[i]]])
-                            #TODO: if texcoord_indexset != None: jsgeom['uv'].extend([float(uv) for uv in prim.texcoordset[0][prim_texcoord_indexset[i]]])
-                        elif index_map[vert_index][0][0] == -1:
+                            if prim.sources['VERTEX']:
+                                jsgeom['positions'].extend([float(p) for p in prim.vertex[attr_indexes[prim.sources['VERTEX'][0][0]]]])
+                            #if norm_index != None: jsgeom['normals'].extend([float(n) for n in prim.normal[prim_norm_index[i]]])
+                            if prim.sources['NORMAL']:
+                                jsgeom['normals'].extend([float(n) for n in prim.normal[attr_indexes[prim.sources['NORMAL'][0][0]]]])
+                            #if texcoord_indexset != None: jsgeom['uv'].extend([float(uv) for uv in prim.texcoordset[0][prim_texcoord_indexset[i]]])
+                            if prim.sources['TEXCOORD']:
+                                jsgeom['uv'].extend([float(uv) for uv in prim.texcoordset[0][attr_indexes[prim.sources['TEXCOORD'][0][0]]]])
+                        elif index_map[vert_index][0] == -1:
                             # Replace the [-1] entry with the correct attribute indexes
                             #index_map[vert_index] = (pack_indices(norm_index, texcoord_indexset), -1)
-                            index_map[vert_index][0] = attr_indexes[1:]
-                            #TODO: if norm_index != None: jsgeom['normals'][vert_index*3:vert_index*3+3] = [float(n) for n in prim.normal[prim_norm_index[i]]]
-                            #TODO: if texcoord_indexset != None: jsgeom['uv'][vert_index*2:vert_index*2+2] = [float(uv) for uv in prim.texcoordset[0][prim_texcoord_indexset[i]]]
+                            #print index_map
+                            index_map[vert_index][0] = attr_indexes[1]
+                            #print "attr " + str(attr_indexes[1])
+                            #print index_map
+                            #if norm_index != None: jsgeom['normals'][vert_index*3:vert_index*3+3] = [float(n) for n in prim.normal[prim_norm_index[i]]]
+                            #print "normals !!!" + str( [float(n) for n in prim.normal[attr_indexes[prim.sources['NORMAL'][0][0]]]] )
+                            if prim.sources['NORMAL']:
+                                jsgeom['normals'][vert_index*3:vert_index*3+3] = [float(n) for n in prim.normal[attr_indexes[prim.sources['NORMAL'][0][0]]]]
+                            #if texcoord_indexset != None: jsgeom['uv'][vert_index*2:vert_index*2+2] = [float(uv) for uv in prim.texcoordset[0][prim_texcoord_indexset[i]]]
+                            if prim.sources['TEXCOORD']:
+                                jsgeom['uv'][vert_index*2:vert_index*2+2] = [float(uv) for uv in prim.texcoordset[0][attr_indexes[prim.sources['TEXCOORD'][0][0]]]]
 
                         # If the number of vertices added is > 3 then the polygon must be triangulated
                         # The shared vertices of the set of triangles that form the polygon never need to be split

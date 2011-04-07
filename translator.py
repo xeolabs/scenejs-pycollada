@@ -194,17 +194,46 @@ def translate_geometry(geom):
             if prim.texcoordset != None and len(prim.texcoordset) > 0:
                 jsgeom['uv'].extend([0.0] * len(prim.vertex) * 2)
 
+            # Create a polyindex regardless of the underlying geometry
+            polyindex = None
+            if type(prim) is collada.triangleset.TriangleSet:
+                #polyindex = (array([3 * x, 3 * x + 3]) for x in range(0, len(prim.vertex)))
+                polyindex = (array([3 * x, 3 * x + 3]) for x in range(0, prim.ntriangles))
+            elif type(prim) is collada.lineset.LineSet:
+                #polyindex = (array([2 * x, 2 * x + 2]) for x in range(0, len(prim.vertex)))
+                polyindex = (array([2 * x, 2 * x + 2]) for x in range(0, prim.nlines))
+            elif type(prim) is collada.polylist.PolygonList:
+                polyindex = prim.polyindex
+
+            # Ensure that the index is always correctly shaped
+            primindex = None
+            if type(prim) is collada.lineset.LineSet or type(prim) is collada.triangleset.TriangleSet:
+                primindex = prim.index.copy()
+                primindex.resize((len(prim.index.flat)/2, 2))
+            else:
+                primindex = prim.index
+
             # Loop through each vertex, check if it has to be split and then write the data to the relevant buffers
             if not use_index_map:
                 jssubgeom['indices'].extend([int(i) for prim_vert_index in prim.vertex_index for i in prim_vert_index])
             else:
                 norm_index = -1
                 prim_index_index = 0
-                for prim_poly_index in prim.polyindex:
-                    prim_norm_index = prim.normal_index[prim_index_index] if prim.normal != None else None
-                    prim_texcoord_indexset = prim.texcoord_indexset[0][prim_index_index] if prim.texcoordset != None and len(prim.texcoord_indexset) > 0 else None
+                #for prim_poly_index in polyindex:
+                #    print range(prim_poly_index[0], prim_poly_index[1])
+                #print polyindex
+                for prim_poly_index in polyindex:
+                    #prim_norm_index = prim.normal_index[prim_index_index] if prim.normal != None else None
+                    #prim_texcoord_indexset = prim.texcoord_indexset[0][prim_index_index] if prim.texcoordset != None and len(prim.texcoord_indexset) > 0 else None
+                    #print range(prim_poly_index[0], prim_poly_index[1])
                     for poly_index in range(prim_poly_index[0], prim_poly_index[1]):
-                        attr_indexes = prim.index[poly_index]
+                        attr_indexes = primindex[poly_index]
+                        #print polyindex
+                        #print prim_poly_index
+                        #print primindex
+                        #print poly_index
+                        #if type(prim) is collada.lineset.LineSet:
+                        #    print attr_indexes
                         vert_index = attr_indexes[0] # We use the first attribute index as the primary index to determine whether vertex attributes should be shared (this is probably, but not neccesarily the "position" index)
                         #vert_index = prim_vert_index[i]
                         #orm_index = prim_norm_index[i] if prim_norm_index != None else None
@@ -242,10 +271,14 @@ def translate_geometry(geom):
                         elif index_map[vert_index][0] == -1:
                             # Replace the [-1] entry with the correct attribute indexes
                             #index_map[vert_index] = (pack_indices(norm_index, texcoord_indexset), -1)
-                            #print index_map
-                            index_map[vert_index][0] = attr_indexes[1]
+
+                            # Here
+                            #print index_map.shape
+                            #print attr_indexes.shape
+                            #print attr_indexes
+
+                            index_map[vert_index][:-1] = attr_indexes[1:]
                             #print "attr " + str(attr_indexes[1])
-                            #print index_map
                             #if norm_index != None: jsgeom['normals'][vert_index*3:vert_index*3+3] = [float(n) for n in prim.normal[prim_norm_index[i]]]
                             #print "normals !!!" + str( [float(n) for n in prim.normal[attr_indexes[prim.sources['NORMAL'][0][0]]]] )
                             if prim.sources['NORMAL']:
@@ -268,7 +301,7 @@ def translate_geometry(geom):
                         # Add the newly calculated vertex index (which may be the original one or a new one if the vertex has been split)
                         if prim_poly_index[1] - prim_poly_index[0] >= 2:
                             jssubgeom['indices'].append(int(vert_index))
-                    prim_index_index += 1        
+                    prim_index_index += 1
         elif _verbose:
             print "Warning: '" + type(prim).__name__ + "' geometry type is not yet supported by the translator."
 

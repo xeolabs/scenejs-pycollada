@@ -148,14 +148,16 @@ def translate_geometry(geom):
     #}
     jssubgeoms = []
 
+    c_subgeom = 0
     for prim in geom.primitives:
         # TODO: support other primitive types (<polygons>, <trifans>, <tristrips>, <linestrips>)
         jssubgeom = {
             'type': 'geometry',
-            'id': geom.id,
+            'id': geom.id + str(c_subgeom),
             'resource': geom.id,
             'indices': []
         }
+        c_subgeom += 1
 
         if type(prim) is collada.triangleset.TriangleSet \
               or type(prim) is collada.polylist.PolygonList \

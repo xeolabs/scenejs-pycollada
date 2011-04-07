@@ -51,13 +51,16 @@ def translate(output_stream, collada_obj, debug = False, verbose = False):
 
 # Helpers
 def _float_attribute(jsnode, key, val):
-  if val and type(val) is float:
-    jsnode[key] = val
+  if not val or type(val) is not float:
+    return False
+  jsnode[key] = val
+  return True
 
 def _rgb_attribute(jsnode, key, val):
-  if val and type(val) is tuple:
-    jsnode[key] = { 'r': val[0], 'g': val[1], 'b': val[2] }
-
+  if not val or type(val) is not tuple:
+    return False
+  jsnode[key] = { 'r': val[0], 'g': val[1], 'b': val[2] }    
+  return True
 
 def translate_material(mat):
     """
@@ -67,11 +70,19 @@ def translate_material(mat):
         geom
           An instance of the PyCollada Material class.
     """
+    jstexture = {
+        'type': 'texture'
+    }
     jsmaterial = {
         'type': 'material',
         'id': mat.id
     }
-    _rgb_attribute(jsmaterial, 'baseColor', mat.diffuse)
+    if not _rgb_attribute(jsmaterial, 'baseColor', mat.diffuse):
+        _rgb_attribute(jsmaterial, 'baseColor', (0.5,0.5,0.5))
+        if type(mat.diffuse) is collada.material.Map:
+            print "TODO: BUSY HERE (create a texture)"
+        elif _verbose:
+            print "Unknown diffuse colour input: " + str(mat.diffuse)
     _rgb_attribute(jsmaterial, 'specularColor', mat.specular)
     _float_attribute(jsmaterial, 'shine', mat.shininess)
     _float_attribute(jsmaterial, 'alpha', mat.transparency)
@@ -176,7 +187,8 @@ def translate_geometry(geom):
             #                                      -1 if prim.texcoordset != None and len(prim.texcoordset) > 0 else None)
             #    #                                 (-1,) if prim.texcoordset != None and len(prim.texcoordset) > 0 else None)
             #    index_map = [(packed_empty_index, -1)] * len(prim.vertex)
-            index_map = array([[-1, -1]] * len(prim.vertex))
+            num_index_elems = 1 + (1 if prim.normal != None else 0) + (1 if prim.texcoordset != () else 0)
+            index_map = array([[-1] * num_index_elems] * len(prim.vertex))
             use_index_map = (prim.normal != None or (prim.texcoordset != None and len(prim.texcoordset) > 0))
             
             # Initialize jsgeom structure
@@ -256,6 +268,8 @@ def translate_geometry(geom):
                         if vert_index == -1:
                             vert_index = len(jsgeom['positions']) / 3
                             index_map[prev_vert_index][-1] = len(index_map)
+                            #print index_map
+                            #print append(attr_indexes[1:], [-1])
                             index_map = append(index_map, [append(attr_indexes[1:], [-1])], axis=0)
 
                             # Now add new entries for vertex attributes themselves
@@ -275,9 +289,11 @@ def translate_geometry(geom):
                             # Here
                             #print index_map.shape
                             #print attr_indexes.shape
+                            #print index_map
                             #print attr_indexes
 
                             index_map[vert_index][:-1] = attr_indexes[1:]
+                            #print attr_indexes
                             #print "attr " + str(attr_indexes[1])
                             #if norm_index != None: jsgeom['normals'][vert_index*3:vert_index*3+3] = [float(n) for n in prim.normal[prim_norm_index[i]]]
                             #print "normals !!!" + str( [float(n) for n in prim.normal[attr_indexes[prim.sources['NORMAL'][0][0]]]] )

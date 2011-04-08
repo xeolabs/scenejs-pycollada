@@ -323,8 +323,9 @@ def _translate_scene_nodes(nodes):
                 jschild_nodes = _translate_scene_nodes(node.nodes)
                 # Don't append the transform node unless it has children (isolated transform nodes are redundant)
                 if jschild_nodes:
+                    # Matrices from COLLADA are transposed
+                    elems = [float(element) for row in node.matrix.transpose() for element in row]
                     # Light nodes should always be placed first in the list (because they are activated in order)
-                    elems = [float(element) for row in node.matrix for element in row]
                     if contains_light_nodes(jschild_nodes):
                         jsnodes.insert(0, { 
                             'type': 'matrix', 
@@ -452,6 +453,5 @@ def translate_scene(scene):
             'clearColor': { 'r': 0.4, 'g': 0.4, 'b': 0.4 },
             'nodes': [ jscamera ]
         }]
-
     }
 

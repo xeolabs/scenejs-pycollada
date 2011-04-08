@@ -28,7 +28,7 @@ var SceneJS = {
 
     /** Names of supported WebGL canvas contexts
      */
-    SUPPORTED_WEBGL_CONTEXT_NAMES:["experimental-webgl", "webkit-3d", "moz-webgl", "moz-glweb20"],
+    SUPPORTED_WEBGL_CONTEXT_NAMES:["webgl", "experimental-webgl", "webkit-3d", "moz-webgl", "moz-glweb20"],
 
     /** Extension point to create a new node type.
      *
@@ -342,6 +342,8 @@ SceneJS.Services = new (function() {
 
     this.GEO_LOADER_SERVICE_ID = "geo-stream";
 
+    this.MORPH_GEO_LOADER_SERVICE_ID = "geo-stream";
+
     this.COMMAND_SERVICE_ID = "command";
 
     this._services = {};
@@ -363,14 +365,20 @@ SceneJS.Services = new (function() {
      * Install stub services
      *---------------------------------------------------*/
 
-    this.addService(this.GEO_LOADER_SERVICE_ID, {
+    this.addService(this.NODE_LOADER_SERVICE_ID, {
         loadNode: function(nodeId) {
         }
     });
 
     this.addService(this.GEO_LOADER_SERVICE_ID, {
         loadGeometry: function (id, params, cb) {
-            throw "SceneJS.Services service not installed: SceneJS.Services.BINARY_GEO_LOADER_SERVICE_ID";
+            throw "SceneJS.Services service not installed: SceneJS.Services.GEO_LOADER_SERVICE_ID";
+        }
+    });
+
+    this.addService(this.MORPH_GEO_LOADER_SERVICE_ID, {
+        loadMorphGeometry: function (id, params, cb) {
+            throw "SceneJS.Services service not installed: SceneJS.Services.MORPH_GEO_LOADER_SERVICE_ID";
         }
     });
 })();
@@ -681,6 +689,30 @@ SceneJS._WithNode.prototype.bind = function(name, handler) {
     return this;
 };
 
+/** Unbinds a listener for an event on the selected node
+ *
+ * @param {String} name Event name
+ * @param {Function} handler Event handler
+ */
+SceneJS._WithNode.prototype.unbind = function(name, handler) {
+    if (!name) {
+        throw "bind param 'name' null or undefined";
+    }
+    if (typeof name != "string") {
+        throw "bind param 'name' should be a string";
+    }
+    if (!handler) {
+        throw "bind param 'handler' null or undefined";
+    }
+    if (typeof handler != "function") {
+        throw "bind param 'handler' should be a function";
+    } else {
+        this._targetNode.removeListener(name, handler);
+        SceneJS._compileModule.nodeUpdated(this._targetNode);
+    }
+    return this;
+};
+
 /**
  * Performs pick on the selected scene node, which must be a scene.
  * @param offsetX Canvas X-coordinate
@@ -840,7 +872,6 @@ SceneJS._WithNode.prototype._callNodeMethod = function(prefix, attr, value, targ
     /* TODO: event should be queued and consumed to avoid many of these events accumulating
      */
     targetNode._fireEvent("updated", params);
-    //   SceneJS._eventModule.fireEvent(SceneJS._eventModule.NODE_UPDATED, { nodeId : node.getID() });
 };
 
 
@@ -1068,234 +1099,45 @@ SceneJS.getConfigs = SceneJS.getDebugConfigs = function (path) {
 };
 
 SceneJS.errors = {};
+
+SceneJS.errors.ERROR = 0;
+SceneJS.errors.WEBGL_NOT_SUPPORTED = 1;
+SceneJS.errors.NODE_CONFIG_EXPECTED = 2;
+SceneJS.errors.ILLEGAL_NODE_CONFIG = 3;
+SceneJS.errors.SHADER_COMPILATION_FAILURE = 4;
+SceneJS.errors.SHADER_LINK_FAILURE = 5;
+SceneJS.errors.CANVAS_NOT_FOUND = 6;
+SceneJS.errors.OUT_OF_VRAM = 7;
+SceneJS.errors.WEBGL_UNSUPPORTED_NODE_CONFIG = 8;
+SceneJS.errors.INSTANCE_TARGET_NOT_FOUND = 9;
+SceneJS.errors.INSTANCE_CYCLE = 10;
+SceneJS.errors.NODE_NOT_FOUND = 11;
+SceneJS.errors.NODE_ILLEGAL_STATE = 12;
+
 /**
+ *
  * @class Wrapper for an exception not recognised by SceneJS.
  */
-SceneJS.errors.Exception = function(msg, cause) {
+SceneJS.errors.Exception = function(code, msg, cause) {
+    this.code = code;
     this.message = "SceneJS.errors.Exception: " + msg;
     this.cause = cause;
 };
 
-/**
- * @class Exception thrown by SceneJS when a recognised WebGL context could not be found on the canvas specified to a {@link SceneJS.Scene}.
- */
-SceneJS.errors.WebGLNotSupportedException = function(msg, cause) {
-    this.message = "SceneJS.errors.WebGLNotSupportedException: " + msg;
-    this.cause = cause;
-};
-
-/**
- * @class Exception thrown by {@link SceneJS.Node} or subtypes when a mandatory configuration was not supplied
- */
-SceneJS.errors.NodeConfigExpectedException = function(msg, cause) {
-    this.message = "SceneJS.errors.NodeConfigExpectedException: " + msg;
-    this.cause = cause;
-};
-
-/**
- * @private
- */
-SceneJS.errors.ShaderCompilationFailureException = function(msg, cause) {
-    this.message = "SceneJS.errors.ShaderCompilationFailureException: " + msg;
-    this.cause = cause;
-};
-
-/**
- * @private
- */
-SceneJS.errors.ShaderLinkFailureException = function(msg, cause) {
-    this.message = "SceneJS.errors.ShaderLinkFailureException: " + msg;
-    this.cause = cause;
-};
-
-/**
- * @private
- */
-SceneJS.errors.NoSceneActiveException = function(msg, cause) {
-    this.message = "SceneJS.errors.NoSceneActiveException: " + msg;
-    this.cause = cause;
-};
-
-/**
- * @private
- */
-SceneJS.errors.NoCanvasActiveException = function(msg, cause) {
-    this.message = "SceneJS.errors.NoCanvasActiveException: " + msg;
-    this.cause = cause;
-};
-
-/**
- * @class Exception thrown when a {@link SceneJS.Scene} 'canvasId' configuration does not match any elements in the page and no
- * default canvas was found with the ID specified in {@link SceneJS.Scene.DEFAULT_CANVAS_ID}.
- */
-SceneJS.errors.CanvasNotFoundException = function(msg, cause) {
-    this.message = "SceneJS.errors.CanvasNotFoundException: " + msg;
-    this.cause = cause;
-};
-
-/**
- * @class Exception thrown by SceneJS node classes when configuration property is invalid.
- */
-SceneJS.errors.InvalidNodeConfigException = function(msg, cause) {
-    this.message = "SceneJS.errors.InvalidNodeConfigException: " + msg;
-    this.cause = cause;
-};
-
-/**
- * @class  Exception thrown when SceneJS fails to allocate a buffer (eg. texture, vertex array) in video RAM.
- * <p>Whether this is actually thrown before your GPU/computer hangs depends on the quality of implementation within the underlying
- * OS/OpenGL/WebGL stack, so there are no guarantees that SceneJS will warn you with one of these.</p.
- */
-SceneJS.errors.OutOfVRAMException = function(msg, cause) {
-    this.message = "SceneJS.errors.OutOfVRAMException: " + msg;
-    this.cause = cause;
-};
-
-/**@class  Exception thrown when a {@link SceneJS.Scene} 'loggingElementId' configuration does not match any elements in the page and no
- * default DIV was found with the ID specified in {@link SceneJS.Scene.DEFAULT_LOGGING_ELEMENT_ID}.
- */
-SceneJS.errors.DocumentElementNotFoundException = function(msg, cause) {
-    this.message = "SceneJS.errors.DocumentElementNotFoundException: " + msg;
-    this.cause = cause;
-};
-
-/**
- * @class  Exception thrown by nodes such as {@link SceneJS.Renderer} and {@link SceneJS.Texture} when the browser's WebGL does not support
- * a specified config value.
- */
-SceneJS.errors.WebGLUnsupportedNodeConfigException = function(msg, cause) {
-    this.message = "SceneJS.errors.WebGLUnsupportedNodeConfigException: " + msg;
-    this.cause = cause;
-};
-
-/** @private */
-SceneJS.errors.PickWithoutRenderedException = function(msg, cause) {
-    this.message = "SceneJS.errors.PickWithoutRenderedException: " + msg;
-    this.cause = cause;
-};
-
-/**
- * @class  Exception thrown when a node (such as {@link SceneJS.ScalarInterpolator}) expects to find some element of data on the current
- * data scope (SceneJS.Data).
- */
-SceneJS.errors.DataExpectedException = function(msg, cause) {
-    this.message = "SceneJS.errors.DataExpectedException: " + msg;
-    this.cause = cause;
-};
-
-
-/**
- * @class  Exception thrown to signify a general internal SceneJS exception, ie. a SceneJS implementation bug.
- */
-SceneJS.errors.InternalException = function(msg, cause) {
-    this.message = "SceneJS.errors.InternalException: " + msg;
-    this.cause = cause;
-};
-
-/**
- * @class  Exception thrown to signify that a {@link SceneJS.Instance} node could not find
- * it's target node
- */
-SceneJS.errors.SymbolNotFoundException = function(msg, cause) {
-    this.message = "SceneJS.errors.SymbolNotFoundException: " + msg;
-    this.cause = cause;
-};
-
-/**
- * @class  Exception thrown to signify that a {@link SceneJS.Instance} node is attempting to create a cyclic
- * chain of instantiation
- */
-SceneJS.errors.CyclicInstanceException = function(msg, cause) {
-    this.message = "SceneJS.errors.CyclicInstanceException: " + msg;
-    this.cause = cause;
-};
-
-/**
- * @class  Exception thrown to signify an attempt to link/nest {@link SceneJS.Node}s or subtypes in a manner that would create an invalid scene graph
- * a {@link SceneJS.Symbol} to instance
- */
-SceneJS.errors.InvalidSceneGraphException = function(msg, cause) {
-    this.message = "SceneJS.errors.InvalidSceneGraphException: " + msg;
-    this.cause = cause;
-};
-
-/**
- * @class  Exception thrown to signify that browser does not support the {@link SceneJS.Socket} node (ie. WebSockets not supported)
- */
-SceneJS.errors.SocketNotSupportedException = function(msg, cause) {
-    this.message = "SceneJS.errors.SocketNotSupportedException: " + msg;
-    this.cause = cause;
-};
-
-/**
- * @class  Exception thrown to signify error condition on a {@link SceneJS.Socket}
- */
-SceneJS.errors.SocketErrorException = function(msg, cause) {
-    this.message = "SceneJS.errors.SocketErrorException: " + msg;
-    this.cause = cause;
-};
-
-
-/**
- * @class  Exception thrown to signify error response by a {@link SceneJS.Socket} node's server peer.
- */
-SceneJS.errors.SocketServerErrorException = function(msg, cause) {
-    this.message = "SceneJS.errors.SocketServerErrorException: " + msg;
-    this.cause = cause;
-};
-
-
-/**
- * @class Exception thrown by {@link SceneJS.WithConfigs} when in strictNodes mode and a node reference
- * on its configuration map could not be resolved to any nodes in it's subgraph.
- */
-SceneJS.errors.WithConfigsNodeNotFoundException = function(msg, cause) {
-    this.message = "SceneJS.errors.WithConfigsNodeNotFoundException: " + msg;
-    this.cause = cause;
-};
-
-/**
- * @class Exception thrown by {@link SceneJS.WithConfigs} when in strictProperties mode and a property reference
- * on its configuration map could not be resolved to any methods on a specified target node in it's subgraph.
- */
-SceneJS.errors.WithConfigsPropertyNotFoundException = function(msg, cause) {
-    this.message = "SceneJS.errors.WithConfigsPropertyNotFoundException: " + msg;
-    this.cause = cause;
-};
-
-/**
- * @class Exception thrown by {@link SceneJS.UseModule} when it cannot find a module matching it's name configuration
- * property. This is likely to be because you didn't load any module of that name with SceneJS.requireModule().
- */
-SceneJS.errors.ModuleNotFoundException = function(msg, cause) {
-    this.message = "SceneJS.errors.ModuleNotFoundException: " + msg;
-    this.cause = cause;
-};
-
-/**
- * @class Exception thrown by {@link SceneJS#requireModule} when a module does not load within timeout interval.
- */
-SceneJS.errors.ModuleLoadTimeoutException = function(msg, cause) {
-    this.message = "SceneJS.errors.ModuleLoadTimeoutException: " + msg;
-    this.cause = cause;
-};
-
-/**
- * @class Exception thrown by {@link SceneJS#installModule} when a module caused an exception while installing.
- */
-SceneJS.errors.ModuleInstallFailureException = function(msg, cause) {
-    this.message = "SceneJS.errors.ModuleInstallFailureException: " + msg;
-    this.cause = cause;
-};
-
-
-
+SceneJS.errors._getErrorName = function(code) {
+    for (var key in SceneJS.errors) {
+        if (SceneJS.errors.hasOwnProperty(key) && SceneJS.errors[key] == code) {
+            return key;
+        }
+    }
+    return null;
+}
 
 
 /* 
  * Optimizations made based on glMatrix by Brandon Jones
  */
- 
+
 /*
  * Copyright (c) 2010 Brandon Jones
  *
@@ -1320,7 +1162,7 @@ SceneJS.errors.ModuleInstallFailureException = function(msg, cause) {
  */
 
 
-/**  
+/**
  * @param u vec3
  * @param v vec3
  * @param dest vec3 - optional destination
@@ -1328,32 +1170,36 @@ SceneJS.errors.ModuleInstallFailureException = function(msg, cause) {
  * @private
  */
 SceneJS._math_divVec3 = function(u, v, dest) {
-    if(!dest) { dest = u; }
-    
+    if (!dest) {
+        dest = u;
+    }
+
     dest[0] = u[0] / v[0];
     dest[1] = u[1] / v[1];
     dest[2] = u[2] / v[2];
-    
+
     return dest;
 };
 
-/**  
+/**
  * @param v vec4
  * @param dest vec4 - optional destination
  * @return {vec4} dest if specified, v otherwise
  * @private
  */
 SceneJS._math_negateVector4 = function(v, dest) {
-    if(!dest) { dest = v; }
+    if (!dest) {
+        dest = v;
+    }
     dest[0] = -v[0];
     dest[1] = -v[1];
     dest[2] = -v[2];
     dest[3] = -v[3];
-    
+
     return dest;
 };
 
-/**  
+/**
  * @param u vec4
  * @param v vec4
  * @param dest vec4 - optional destination
@@ -1361,18 +1207,20 @@ SceneJS._math_negateVector4 = function(v, dest) {
  * @private
  */
 SceneJS._math_addVec4 = function(u, v, dest) {
-    if(!dest) { dest = u; }
-    
+    if (!dest) {
+        dest = u;
+    }
+
     dest[0] = u[0] + v[0];
     dest[1] = u[1] + v[1];
     dest[2] = u[2] + v[2];
     dest[3] = u[3] + v[3];
-    
+
     return dest;
 };
 
 
-/**  
+/**
  * @param v vec4
  * @param s scalar
  * @param dest vec4 - optional destination
@@ -1380,17 +1228,19 @@ SceneJS._math_addVec4 = function(u, v, dest) {
  * @private
  */
 SceneJS._math_addVec4s = function(v, s, dest) {
-    if(!dest) { dest = v; }
-    
+    if (!dest) {
+        dest = v;
+    }
+
     dest[0] = v[0] + s;
     dest[1] = v[1] + s;
     dest[2] = v[2] + s;
     dest[3] = v[3] + s;
-    
+
     return dest;
 };
 
-/**  
+/**
  * @param u vec3
  * @param v vec3
  * @param dest vec3 - optional destination
@@ -1398,16 +1248,18 @@ SceneJS._math_addVec4s = function(v, s, dest) {
  * @private
  */
 SceneJS._math_addVec3 = function(u, v, dest) {
-    if(!dest) { dest = u; }
-    
+    if (!dest) {
+        dest = u;
+    }
+
     dest[0] = u[0] + v[0];
     dest[1] = u[1] + v[1];
     dest[2] = u[2] + v[2];
-    
+
     return dest;
 };
 
-/**  
+/**
  * @param v vec3
  * @param s scalar
  * @param dest vec3 - optional destination
@@ -1415,12 +1267,14 @@ SceneJS._math_addVec3 = function(u, v, dest) {
  * @private
  */
 SceneJS._math_addVec3s = function(v, s, dest) {
-    if(!dest) { dest = v; }
-    
+    if (!dest) {
+        dest = v;
+    }
+
     dest[0] = v[0] + s;
     dest[1] = v[1] + s;
     dest[2] = v[2] + s;
-    
+
     return dest;
 };
 
@@ -1429,7 +1283,7 @@ SceneJS._math_addScalarVec4 = function(s, v, dest) {
     return SceneJS._math_addVec4s(v, s, dest);
 };
 
-/**  
+/**
  * @param u vec4
  * @param v vec4
  * @param dest vec4 - optional destination
@@ -1437,17 +1291,19 @@ SceneJS._math_addScalarVec4 = function(s, v, dest) {
  * @private
  */
 SceneJS._math_subVec4 = function(u, v, dest) {
-    if(!dest) { dest = u; }
-    
+    if (!dest) {
+        dest = u;
+    }
+
     dest[0] = u[0] - v[0];
     dest[1] = u[1] - v[1];
     dest[2] = u[2] - v[2];
     dest[3] = u[3] - v[3];
-    
+
     return dest;
 };
 
-/**  
+/**
  * @param u vec3
  * @param v vec3
  * @param dest vec3 - optional destination
@@ -1455,12 +1311,14 @@ SceneJS._math_subVec4 = function(u, v, dest) {
  * @private
  */
 SceneJS._math_subVec3 = function(u, v, dest) {
-    if(!dest) { dest = u; }
-    
+    if (!dest) {
+        dest = u;
+    }
+
     dest[0] = u[0] - v[0];
     dest[1] = u[1] - v[1];
     dest[2] = u[2] - v[2];
-    
+
     return dest;
 };
 
@@ -1475,7 +1333,7 @@ SceneJS._math_lerpVec3 = function(t, t1, t2, p1, p2) {
 };
 
 
-/**  
+/**
  * @param u vec2
  * @param v vec2
  * @param dest vec2 - optional destination
@@ -1483,15 +1341,17 @@ SceneJS._math_lerpVec3 = function(t, t1, t2, p1, p2) {
  * @private
  */
 SceneJS._math_subVec2 = function(u, v, dest) {
-    if(!dest) { dest = u; }
-    
+    if (!dest) {
+        dest = u;
+    }
+
     dest[0] = u[0] - v[0];
     dest[1] = u[1] - v[1];
-    
+
     return dest;
 };
 
-/**  
+/**
  * @param v vec4
  * @param s scalar
  * @param dest vec4 - optional destination
@@ -1499,17 +1359,19 @@ SceneJS._math_subVec2 = function(u, v, dest) {
  * @private
  */
 SceneJS._math_subVec4Scalar = function(v, s, dest) {
-    if(!dest) { dest = v; }
-    
+    if (!dest) {
+        dest = v;
+    }
+
     dest[0] = v[0] - s;
     dest[1] = v[1] - s;
     dest[2] = v[2] - s;
     dest[3] = v[3] - s;
-    
+
     return dest;
 };
 
-/**  
+/**
  * @param v vec4
  * @param s scalar
  * @param dest vec4 - optional destination
@@ -1517,17 +1379,19 @@ SceneJS._math_subVec4Scalar = function(v, s, dest) {
  * @private
  */
 SceneJS._math_subScalarVec4 = function(v, s, dest) {
-    if(!dest) { dest = v; }
-    
+    if (!dest) {
+        dest = v;
+    }
+
     dest[0] = s - v[0];
     dest[1] = s - v[1];
     dest[2] = s - v[2];
     dest[3] = s - v[3];
-    
+
     return dest;
 };
 
-/**  
+/**
  * @param u vec4
  * @param v vec4
  * @param dest vec4 - optional destination
@@ -1535,17 +1399,19 @@ SceneJS._math_subScalarVec4 = function(v, s, dest) {
  * @private
  */
 SceneJS._math_mulVec4 = function(u, v, dest) {
-    if(!dest) { dest = u; }
-    
+    if (!dest) {
+        dest = u;
+    }
+
     dest[0] = u[0] * v[0];
     dest[1] = u[1] * v[1];
     dest[2] = u[2] * v[2];
     dest[3] = u[3] * v[3];
-    
+
     return dest;
 };
 
-/**  
+/**
  * @param v vec4
  * @param s scalar
  * @param dest vec4 - optional destination
@@ -1553,18 +1419,20 @@ SceneJS._math_mulVec4 = function(u, v, dest) {
  * @private
  */
 SceneJS._math_mulVec4Scalar = function(v, s, dest) {
-    if(!dest) { dest = v; }
-    
+    if (!dest) {
+        dest = v;
+    }
+
     dest[0] = v[0] * s;
     dest[1] = v[1] * s;
     dest[2] = v[2] * s;
     dest[3] = v[3] * s;
-    
+
     return dest;
 };
 
 
-/**  
+/**
  * @param v vec3
  * @param s scalar
  * @param dest vec3 - optional destination
@@ -1572,17 +1440,37 @@ SceneJS._math_mulVec4Scalar = function(v, s, dest) {
  * @private
  */
 SceneJS._math_mulVec3Scalar = function(v, s, dest) {
-    if(!dest) { dest = v; }
-    
+    if (!dest) {
+        dest = v;
+    }
+
     dest[0] = v[0] * s;
     dest[1] = v[1] * s;
     dest[2] = v[2] * s;
-    
+
+    return dest;
+};
+
+/**
+ * @param v vec2
+ * @param s scalar
+ * @param dest vec2 - optional destination
+ * @return {vec2} dest if specified, v otherwise
+ * @private
+ */
+SceneJS._math_mulVec2Scalar = function(v, s, dest) {
+    if (!dest) {
+        dest = v;
+    }
+
+    dest[0] = v[0] * s;
+    dest[1] = v[1] * s;
+
     return dest;
 };
 
 
-/**  
+/**
  * @param u vec4
  * @param v vec4
  * @param dest vec4 - optional destination
@@ -1590,17 +1478,19 @@ SceneJS._math_mulVec3Scalar = function(v, s, dest) {
  * @private
  */
 SceneJS._math_divVec4 = function(u, v, dest) {
-    if(!dest) { dest = u; }
-    
+    if (!dest) {
+        dest = u;
+    }
+
     dest[0] = u[0] / v[0];
     dest[1] = u[1] / v[1];
     dest[2] = u[2] / v[2];
     dest[3] = u[3] / v[3];
-    
+
     return dest;
 };
 
-/**  
+/**
  * @param v vec3
  * @param s scalar
  * @param dest vec3 - optional destination
@@ -1608,16 +1498,18 @@ SceneJS._math_divVec4 = function(u, v, dest) {
  * @private
  */
 SceneJS._math_divScalarVec3 = function(s, v, dest) {
-    if(!dest) { dest = v; }
-    
+    if (!dest) {
+        dest = v;
+    }
+
     dest[0] = s / v[0];
     dest[1] = s / v[1];
     dest[2] = s / v[2];
-    
+
     return dest;
 };
 
-/**  
+/**
  * @param v vec3
  * @param s scalar
  * @param dest vec3 - optional destination
@@ -1625,16 +1517,18 @@ SceneJS._math_divScalarVec3 = function(s, v, dest) {
  * @private
  */
 SceneJS._math_divVec3s = function(v, s, dest) {
-    if(!dest) { dest = v; }
-    
+    if (!dest) {
+        dest = v;
+    }
+
     dest[0] = v[0] / s;
     dest[1] = v[1] / s;
     dest[2] = v[2] / s;
-    
+
     return dest;
 };
 
-/**  
+/**
  * @param v vec4
  * @param s scalar
  * @param dest vec4 - optional destination
@@ -1642,18 +1536,20 @@ SceneJS._math_divVec3s = function(v, s, dest) {
  * @private
  */
 SceneJS._math_divVec4s = function(v, s, dest) {
-    if(!dest) { dest = v; }
-    
+    if (!dest) {
+        dest = v;
+    }
+
     dest[0] = v[0] / s;
     dest[1] = v[1] / s;
     dest[2] = v[2] / s;
     dest[3] = v[3] / s;
-    
+
     return dest;
 };
 
 
-/**  
+/**
  * @param s scalar
  * @param v vec4
  * @param dest vec4 - optional destination
@@ -1661,13 +1557,15 @@ SceneJS._math_divVec4s = function(v, s, dest) {
  * @private
  */
 SceneJS._math_divScalarVec4 = function(s, v, dest) {
-    if(!dest) { dest = v; }
-    
+    if (!dest) {
+        dest = v;
+    }
+
     dest[0] = s / v[0];
     dest[1] = s / v[1];
     dest[2] = s / v[2];
     dest[3] = s / v[3];
-    
+
     return dest;
 };
 
@@ -1682,13 +1580,13 @@ SceneJS._math_cross3Vec4 = function(u, v) {
     var u0 = u[0], u1 = u[1], u2 = u[2];
     var v0 = v[0], v1 = v[1], v2 = v[2];
     return [
-      u1 * v2 - u2 * v1,
-      u2 * v0 - u0 * v2,
-      u0 * v1 - u1 * v0,
-      0.0];
+        u1 * v2 - u2 * v1,
+        u2 * v0 - u0 * v2,
+        u0 * v1 - u1 * v0,
+        0.0];
 };
 
-/**  
+/**
  * @param u vec3
  * @param v vec3
  * @param dest vec3 - optional destination
@@ -1696,15 +1594,17 @@ SceneJS._math_cross3Vec4 = function(u, v) {
  * @private
  */
 SceneJS._math_cross3Vec3 = function(u, v, dest) {
-    if(!dest) { dest = u; }
-    
+    if (!dest) {
+        dest = u;
+    }
+
     var x = u[0], y = u[1], z = u[2];
     var x2 = v[0], y2 = v[1], z2 = v[2];
-    
-    dest[0] = y*z2 - z*y2;
-    dest[1] = z*x2 - x*z2;
-    dest[2] = x*y2 - y*x2;
-    
+
+    dest[0] = y * z2 - z * y2;
+    dest[1] = z * x2 - x * z2;
+    dest[2] = x * y2 - y * x2;
+
     return dest;
 };
 
@@ -1748,7 +1648,7 @@ SceneJS._math_lenVec2 = function(v) {
     return Math.sqrt(SceneJS._math_sqLenVec2(v));
 };
 
-/**  
+/**
  * @param v vec3
  * @param dest vec3 - optional destination
  * @return {vec3} dest if specified, v otherwise
@@ -1758,7 +1658,7 @@ SceneJS._math_rcpVec3 = function(v, dest) {
     return SceneJS._math_divScalarVec3(1.0, v, dest);
 };
 
-/**  
+/**
  * @param v vec4
  * @param dest vec4 - optional destination
  * @return {vec4} dest if specified, v otherwise
@@ -1770,9 +1670,15 @@ SceneJS._math_normalizeVec4 = function(v, dest) {
 };
 
 /** @private */
-SceneJS._math_normalizeVec3 = function(v) {
+SceneJS._math_normalizeVec3 = function(v, dest) {
     var f = 1.0 / SceneJS._math_lenVec3(v);
     return SceneJS._math_mulVec3Scalar(v, f);
+};
+
+// @private
+SceneJS._math_normalizeVec2 = function(v, dest) {
+    var f = 1.0 / SceneJS._math_lenVec2(v);
+    return SceneJS._math_mulVec2Scalar(v, f, dest);
 };
 
 /** @private */
@@ -1821,16 +1727,16 @@ SceneJS._math_setRowMat4s = function(m, r, s) {
 /** @private */
 SceneJS._math_getColMat4 = function(m, c) {
     var i = c * 4;
-    return [m[i], m[i+1],m[i+2],m[i+3]];
+    return [m[i], m[i + 1],m[i + 2],m[i + 3]];
 };
 
 /** @private */
 SceneJS._math_setColMat4v = function(m, c, v) {
     var i = c * 4;
     m[i] = v[0];
-    m[i+1] = v[1];
-    m[i+2] = v[2];
-    m[i+3] = v[3];
+    m[i + 1] = v[1];
+    m[i + 2] = v[2];
+    m[i + 3] = v[3];
 };
 
 /** @private */
@@ -1903,21 +1809,23 @@ SceneJS._math_isIdentityMat4 = function(m) {
         m[4] !== 0.0 || m[5] !== 1.0 || m[6] !== 0.0 || m[7] !== 0.0 ||
         m[8] !== 0.0 || m[9] !== 0.0 || m[10] !== 1.0 || m[11] !== 0.0 ||
         m[12] !== 0.0 || m[13] !== 0.0 || m[14] !== 0.0 || m[15] !== 1.0)
-      {
+    {
         return false;
-      }
-      
+    }
+
     return true;
 };
 
-/**  
+/**
  * @param m mat4
  * @param dest mat4 - optional destination
  * @return {mat4} dest if specified, m otherwise
  * @private
  */
 SceneJS._math_negateMat4 = function(m, dest) {
-    if(!dest) { dest = m; }
+    if (!dest) {
+        dest = m;
+    }
 
     dest[0] = -m[0];
     dest[1] = -m[1];
@@ -1935,11 +1843,11 @@ SceneJS._math_negateMat4 = function(m, dest) {
     dest[13] = -m[13];
     dest[14] = -m[14];
     dest[15] = -m[15];
-    
+
     return dest;
 };
 
-/**  
+/**
  * @param a mat4
  * @param b mat4
  * @param dest mat4 - optional destination
@@ -1947,8 +1855,10 @@ SceneJS._math_negateMat4 = function(m, dest) {
  * @private
  */
 SceneJS._math_addMat4 = function(a, b, dest) {
-    if(!dest) { dest = a; }
-    
+    if (!dest) {
+        dest = a;
+    }
+
     dest[0] = a[0] + b[0];
     dest[1] = a[1] + b[1];
     dest[2] = a[2] + b[2];
@@ -1965,11 +1875,11 @@ SceneJS._math_addMat4 = function(a, b, dest) {
     dest[13] = a[13] + b[13];
     dest[14] = a[14] + b[14];
     dest[15] = a[15] + b[15];
-    
+
     return dest;
 };
 
-/**  
+/**
  * @param m mat4
  * @param s scalar
  * @param dest mat4 - optional destination
@@ -1977,8 +1887,10 @@ SceneJS._math_addMat4 = function(a, b, dest) {
  * @private
  */
 SceneJS._math_addMat4Scalar = function(m, s, dest) {
-    if(!dest) { dest = m; }
-    
+    if (!dest) {
+        dest = m;
+    }
+
     dest[0] = m[0] + s;
     dest[1] = m[1] + s;
     dest[2] = m[2] + s;
@@ -1995,7 +1907,7 @@ SceneJS._math_addMat4Scalar = function(m, s, dest) {
     dest[13] = m[13] + s;
     dest[14] = m[14] + s;
     dest[15] = m[15] + s;
-    
+
     return dest;
 };
 
@@ -2004,7 +1916,7 @@ SceneJS._math_addScalarMat4 = function(s, m, dest) {
     return SceneJS._math_addMat4Scalar(m, s, dest);
 };
 
-/**  
+/**
  * @param a mat4
  * @param b mat4
  * @param dest mat4 - optional destination
@@ -2012,8 +1924,10 @@ SceneJS._math_addScalarMat4 = function(s, m, dest) {
  * @private
  */
 SceneJS._math_subMat4 = function(a, b, dest) {
-    if(!dest) { dest = a; }
-    
+    if (!dest) {
+        dest = a;
+    }
+
     dest[0] = a[0] - b[0];
     dest[1] = a[1] - b[1];
     dest[2] = a[2] - b[2];
@@ -2030,11 +1944,11 @@ SceneJS._math_subMat4 = function(a, b, dest) {
     dest[13] = a[13] - b[13];
     dest[14] = a[14] - b[14];
     dest[15] = a[15] - b[15];
-    
+
     return dest;
 };
 
-/**  
+/**
  * @param m mat4
  * @param s scalar
  * @param dest mat4 - optional destination
@@ -2042,8 +1956,10 @@ SceneJS._math_subMat4 = function(a, b, dest) {
  * @private
  */
 SceneJS._math_subMat4Scalar = function(m, s, dest) {
-    if(!dest) { dest = m; }
-    
+    if (!dest) {
+        dest = m;
+    }
+
     dest[0] = m[0] - s;
     dest[1] = m[1] - s;
     dest[2] = m[2] - s;
@@ -2060,11 +1976,11 @@ SceneJS._math_subMat4Scalar = function(m, s, dest) {
     dest[13] = m[13] - s;
     dest[14] = m[14] - s;
     dest[15] = m[15] - s;
-    
+
     return dest;
 };
 
-/**  
+/**
  * @param s scalar
  * @param m mat4
  * @param dest mat4 - optional destination
@@ -2072,8 +1988,10 @@ SceneJS._math_subMat4Scalar = function(m, s, dest) {
  * @private
  */
 SceneJS._math_subScalarMat4 = function(s, m, dest) {
-    if(!dest) { dest = m; }
-    
+    if (!dest) {
+        dest = m;
+    }
+
     dest[0] = s - m[0];
     dest[1] = s - m[1];
     dest[2] = s - m[2];
@@ -2090,11 +2008,11 @@ SceneJS._math_subScalarMat4 = function(s, m, dest) {
     dest[13] = s - m[13];
     dest[14] = s - m[14];
     dest[15] = s - m[15];
-    
+
     return dest;
 };
 
-/**  
+/**
  * @param a mat4
  * @param b mat4
  * @param dest mat4 - optional destination
@@ -2102,40 +2020,42 @@ SceneJS._math_subScalarMat4 = function(s, m, dest) {
  * @private
  */
 SceneJS._math_mulMat4 = function(a, b, dest) {
-    if(!dest) { dest = a; }
-    
+    if (!dest) {
+        dest = a;
+    }
+
     // Cache the matrix values (makes for huge speed increases!)
     var a00 = a[0], a01 = a[1], a02 = a[2], a03 = a[3];
     var a10 = a[4], a11 = a[5], a12 = a[6], a13 = a[7];
     var a20 = a[8], a21 = a[9], a22 = a[10], a23 = a[11];
     var a30 = a[12], a31 = a[13], a32 = a[14], a33 = a[15];
-    
+
     var b00 = b[0], b01 = b[1], b02 = b[2], b03 = b[3];
     var b10 = b[4], b11 = b[5], b12 = b[6], b13 = b[7];
     var b20 = b[8], b21 = b[9], b22 = b[10], b23 = b[11];
     var b30 = b[12], b31 = b[13], b32 = b[14], b33 = b[15];
-    
-    dest[0] = b00*a00 + b01*a10 + b02*a20 + b03*a30;
-    dest[1] = b00*a01 + b01*a11 + b02*a21 + b03*a31;
-    dest[2] = b00*a02 + b01*a12 + b02*a22 + b03*a32;
-    dest[3] = b00*a03 + b01*a13 + b02*a23 + b03*a33;
-    dest[4] = b10*a00 + b11*a10 + b12*a20 + b13*a30;
-    dest[5] = b10*a01 + b11*a11 + b12*a21 + b13*a31;
-    dest[6] = b10*a02 + b11*a12 + b12*a22 + b13*a32;
-    dest[7] = b10*a03 + b11*a13 + b12*a23 + b13*a33;
-    dest[8] = b20*a00 + b21*a10 + b22*a20 + b23*a30;
-    dest[9] = b20*a01 + b21*a11 + b22*a21 + b23*a31;
-    dest[10] = b20*a02 + b21*a12 + b22*a22 + b23*a32;
-    dest[11] = b20*a03 + b21*a13 + b22*a23 + b23*a33;
-    dest[12] = b30*a00 + b31*a10 + b32*a20 + b33*a30;
-    dest[13] = b30*a01 + b31*a11 + b32*a21 + b33*a31;
-    dest[14] = b30*a02 + b31*a12 + b32*a22 + b33*a32;
-    dest[15] = b30*a03 + b31*a13 + b32*a23 + b33*a33;
-    
+
+    dest[0] = b00 * a00 + b01 * a10 + b02 * a20 + b03 * a30;
+    dest[1] = b00 * a01 + b01 * a11 + b02 * a21 + b03 * a31;
+    dest[2] = b00 * a02 + b01 * a12 + b02 * a22 + b03 * a32;
+    dest[3] = b00 * a03 + b01 * a13 + b02 * a23 + b03 * a33;
+    dest[4] = b10 * a00 + b11 * a10 + b12 * a20 + b13 * a30;
+    dest[5] = b10 * a01 + b11 * a11 + b12 * a21 + b13 * a31;
+    dest[6] = b10 * a02 + b11 * a12 + b12 * a22 + b13 * a32;
+    dest[7] = b10 * a03 + b11 * a13 + b12 * a23 + b13 * a33;
+    dest[8] = b20 * a00 + b21 * a10 + b22 * a20 + b23 * a30;
+    dest[9] = b20 * a01 + b21 * a11 + b22 * a21 + b23 * a31;
+    dest[10] = b20 * a02 + b21 * a12 + b22 * a22 + b23 * a32;
+    dest[11] = b20 * a03 + b21 * a13 + b22 * a23 + b23 * a33;
+    dest[12] = b30 * a00 + b31 * a10 + b32 * a20 + b33 * a30;
+    dest[13] = b30 * a01 + b31 * a11 + b32 * a21 + b33 * a31;
+    dest[14] = b30 * a02 + b31 * a12 + b32 * a22 + b33 * a32;
+    dest[15] = b30 * a03 + b31 * a13 + b32 * a23 + b33 * a33;
+
     return dest;
 };
 
-/**  
+/**
  * @param m mat4
  * @param s scalar
  * @param dest mat4 - optional destination
@@ -2144,8 +2064,10 @@ SceneJS._math_mulMat4 = function(a, b, dest) {
  */
 SceneJS._math_mulMat4s = function(m, s, dest)
 {
-    if(!dest) { dest = m; }
-    
+    if (!dest) {
+        dest = m;
+    }
+
     dest[0] = m[0] * s;
     dest[1] = m[1] * s;
     dest[2] = m[2] * s;
@@ -2162,11 +2084,11 @@ SceneJS._math_mulMat4s = function(m, s, dest)
     dest[13] = m[13] * s;
     dest[14] = m[14] * s;
     dest[15] = m[15] * s;
-    
+
     return dest;
 };
 
-/**  
+/**
  * @param m mat4
  * @param v vec4
  * @return {vec4}
@@ -2174,7 +2096,7 @@ SceneJS._math_mulMat4s = function(m, s, dest)
  */
 SceneJS._math_mulMat4v4 = function(m, v) {
     var v0 = v[0], v1 = v[1], v2 = v[2], v3 = v[3];
-    
+
     return [
         m[0] * v0 + m[4] * v1 + m[8] * v2 + m[12] * v3,
         m[1] * v0 + m[5] * v1 + m[9] * v2 + m[13] * v3,
@@ -2183,7 +2105,7 @@ SceneJS._math_mulMat4v4 = function(m, v) {
     ];
 };
 
-/**  
+/**
  * @param mat mat4
  * @param dest mat4 - optional destination
  * @return {mat4} dest if specified, mat otherwise
@@ -2193,26 +2115,26 @@ SceneJS._math_transposeMat4 = function(mat, dest) {
     // If we are transposing ourselves we can skip a few steps but have to cache some values
     var m4 = mat[4], m14 = mat[14], m8 = mat[8];
     var m13 = mat[13], m12 = mat[12], m9 = mat[9];
-    if(!dest || mat == dest) { 
-      var a01 = mat[1], a02 = mat[2], a03 = mat[3];
-      var a12 = mat[6], a13 = mat[7];
-      var a23 = mat[11];
-      
-      mat[1] = m4;
-      mat[2] = m8;
-      mat[3] = m12;
-      mat[4] = a01;
-      mat[6] = m9;
-      mat[7] = m13;
-      mat[8] = a02;
-      mat[9] = a12;
-      mat[11] = m14;
-      mat[12] = a03;
-      mat[13] = a13;
-      mat[14] = a23;
-      return mat;
+    if (!dest || mat == dest) {
+        var a01 = mat[1], a02 = mat[2], a03 = mat[3];
+        var a12 = mat[6], a13 = mat[7];
+        var a23 = mat[11];
+
+        mat[1] = m4;
+        mat[2] = m8;
+        mat[3] = m12;
+        mat[4] = a01;
+        mat[6] = m9;
+        mat[7] = m13;
+        mat[8] = a02;
+        mat[9] = a12;
+        mat[11] = m14;
+        mat[12] = a03;
+        mat[13] = a13;
+        mat[14] = a23;
+        return mat;
     }
-    
+
     dest[0] = mat[0];
     dest[1] = m4;
     dest[2] = m8;
@@ -2239,63 +2161,65 @@ SceneJS._math_determinantMat4 = function(mat) {
     var a10 = mat[4], a11 = mat[5], a12 = mat[6], a13 = mat[7];
     var a20 = mat[8], a21 = mat[9], a22 = mat[10], a23 = mat[11];
     var a30 = mat[12], a31 = mat[13], a32 = mat[14], a33 = mat[15];
-  
-    return a30*a21*a12*a03 - a20*a31*a12*a03 - a30*a11*a22*a03 + a10*a31*a22*a03 +
-        a20*a11*a32*a03 - a10*a21*a32*a03 - a30*a21*a02*a13 + a20*a31*a02*a13 +
-        a30*a01*a22*a13 - a00*a31*a22*a13 - a20*a01*a32*a13 + a00*a21*a32*a13 +
-        a30*a11*a02*a23 - a10*a31*a02*a23 - a30*a01*a12*a23 + a00*a31*a12*a23 +
-        a10*a01*a32*a23 - a00*a11*a32*a23 - a20*a11*a02*a33 + a10*a21*a02*a33 +
-        a20*a01*a12*a33 - a00*a21*a12*a33 - a10*a01*a22*a33 + a00*a11*a22*a33;
+
+    return a30 * a21 * a12 * a03 - a20 * a31 * a12 * a03 - a30 * a11 * a22 * a03 + a10 * a31 * a22 * a03 +
+           a20 * a11 * a32 * a03 - a10 * a21 * a32 * a03 - a30 * a21 * a02 * a13 + a20 * a31 * a02 * a13 +
+           a30 * a01 * a22 * a13 - a00 * a31 * a22 * a13 - a20 * a01 * a32 * a13 + a00 * a21 * a32 * a13 +
+           a30 * a11 * a02 * a23 - a10 * a31 * a02 * a23 - a30 * a01 * a12 * a23 + a00 * a31 * a12 * a23 +
+           a10 * a01 * a32 * a23 - a00 * a11 * a32 * a23 - a20 * a11 * a02 * a33 + a10 * a21 * a02 * a33 +
+           a20 * a01 * a12 * a33 - a00 * a21 * a12 * a33 - a10 * a01 * a22 * a33 + a00 * a11 * a22 * a33;
 };
 
-/**  
+/**
  * @param mat mat4
  * @param dest mat4 - optional destination
  * @return {mat4} dest if specified, mat otherwise
  * @private
  */
 SceneJS._math_inverseMat4 = function(mat, dest) {
-    if(!dest) { dest = mat; }
-    
+    if (!dest) {
+        dest = mat;
+    }
+
     // Cache the matrix values (makes for huge speed increases!)
     var a00 = mat[0], a01 = mat[1], a02 = mat[2], a03 = mat[3];
     var a10 = mat[4], a11 = mat[5], a12 = mat[6], a13 = mat[7];
     var a20 = mat[8], a21 = mat[9], a22 = mat[10], a23 = mat[11];
     var a30 = mat[12], a31 = mat[13], a32 = mat[14], a33 = mat[15];
-    
-    var b00 = a00*a11 - a01*a10;
-    var b01 = a00*a12 - a02*a10;
-    var b02 = a00*a13 - a03*a10;
-    var b03 = a01*a12 - a02*a11;
-    var b04 = a01*a13 - a03*a11;
-    var b05 = a02*a13 - a03*a12;
-    var b06 = a20*a31 - a21*a30;
-    var b07 = a20*a32 - a22*a30;
-    var b08 = a20*a33 - a23*a30;
-    var b09 = a21*a32 - a22*a31;
-    var b10 = a21*a33 - a23*a31;
-    var b11 = a22*a33 - a23*a32;
-    
+
+    var b00 = a00 * a11 - a01 * a10;
+    var b01 = a00 * a12 - a02 * a10;
+    var b02 = a00 * a13 - a03 * a10;
+    var b03 = a01 * a12 - a02 * a11;
+    var b04 = a01 * a13 - a03 * a11;
+    var b05 = a02 * a13 - a03 * a12;
+    var b06 = a20 * a31 - a21 * a30;
+    var b07 = a20 * a32 - a22 * a30;
+    var b08 = a20 * a33 - a23 * a30;
+    var b09 = a21 * a32 - a22 * a31;
+    var b10 = a21 * a33 - a23 * a31;
+    var b11 = a22 * a33 - a23 * a32;
+
     // Calculate the determinant (inlined to avoid double-caching)
-    var invDet = 1/(b00*b11 - b01*b10 + b02*b09 + b03*b08 - b04*b07 + b05*b06);
-    
-    dest[0] = (a11*b11 - a12*b10 + a13*b09)*invDet;
-    dest[1] = (-a01*b11 + a02*b10 - a03*b09)*invDet;
-    dest[2] = (a31*b05 - a32*b04 + a33*b03)*invDet;
-    dest[3] = (-a21*b05 + a22*b04 - a23*b03)*invDet;
-    dest[4] = (-a10*b11 + a12*b08 - a13*b07)*invDet;
-    dest[5] = (a00*b11 - a02*b08 + a03*b07)*invDet;
-    dest[6] = (-a30*b05 + a32*b02 - a33*b01)*invDet;
-    dest[7] = (a20*b05 - a22*b02 + a23*b01)*invDet;
-    dest[8] = (a10*b10 - a11*b08 + a13*b06)*invDet;
-    dest[9] = (-a00*b10 + a01*b08 - a03*b06)*invDet;
-    dest[10] = (a30*b04 - a31*b02 + a33*b00)*invDet;
-    dest[11] = (-a20*b04 + a21*b02 - a23*b00)*invDet;
-    dest[12] = (-a10*b09 + a11*b07 - a12*b06)*invDet;
-    dest[13] = (a00*b09 - a01*b07 + a02*b06)*invDet;
-    dest[14] = (-a30*b03 + a31*b01 - a32*b00)*invDet;
-    dest[15] = (a20*b03 - a21*b01 + a22*b00)*invDet;
-    
+    var invDet = 1 / (b00 * b11 - b01 * b10 + b02 * b09 + b03 * b08 - b04 * b07 + b05 * b06);
+
+    dest[0] = (a11 * b11 - a12 * b10 + a13 * b09) * invDet;
+    dest[1] = (-a01 * b11 + a02 * b10 - a03 * b09) * invDet;
+    dest[2] = (a31 * b05 - a32 * b04 + a33 * b03) * invDet;
+    dest[3] = (-a21 * b05 + a22 * b04 - a23 * b03) * invDet;
+    dest[4] = (-a10 * b11 + a12 * b08 - a13 * b07) * invDet;
+    dest[5] = (a00 * b11 - a02 * b08 + a03 * b07) * invDet;
+    dest[6] = (-a30 * b05 + a32 * b02 - a33 * b01) * invDet;
+    dest[7] = (a20 * b05 - a22 * b02 + a23 * b01) * invDet;
+    dest[8] = (a10 * b10 - a11 * b08 + a13 * b06) * invDet;
+    dest[9] = (-a00 * b10 + a01 * b08 - a03 * b06) * invDet;
+    dest[10] = (a30 * b04 - a31 * b02 + a33 * b00) * invDet;
+    dest[11] = (-a20 * b04 + a21 * b02 - a23 * b00) * invDet;
+    dest[12] = (-a10 * b09 + a11 * b07 - a12 * b06) * invDet;
+    dest[13] = (a00 * b09 - a01 * b07 + a02 * b06) * invDet;
+    dest[14] = (-a30 * b03 + a31 * b01 - a32 * b00) * invDet;
+    dest[15] = (a20 * b03 - a21 * b01 + a22 * b00) * invDet;
+
     return dest;
 };
 
@@ -2348,19 +2272,19 @@ SceneJS._math_rotationMat4v = function(anglerad, axis) {
 
     var m = SceneJS._math_mat4();
 
-    m[0] = (q * x*x) + c;
+    m[0] = (q * x * x) + c;
     m[1] = (q * xy) + zs;
     m[2] = (q * zx) - ys;
     m[3] = 0.0;
 
     m[4] = (q * xy) - zs;
-    m[5] = (q * y*y) + c;
+    m[5] = (q * y * y) + c;
     m[6] = (q * yz) + xs;
     m[7] = 0.0;
 
     m[8] = (q * zx) + ys;
     m[9] = (q * yz) - xs;
-    m[10] = (q * z*z) + c;
+    m[10] = (q * z * z) + c;
     m[11] = 0.0;
 
     m[12] = 0.0;
@@ -2396,6 +2320,15 @@ SceneJS._math_scalingMat4s = function(s) {
 };
 
 /**
+ * Default lookat properties - eye at 0,0,1, looking at 0,0,0, up vector pointing up Y-axis
+ */
+SceneJS._math_LOOKAT = {
+    eye:    {x: 0, y:0, z:1.0 },
+    look:   {x:0, y:0, z:0.0 },
+    up:     {x:0, y:1, z:0.0 }
+};
+
+/**
  * @param pos vec3 position of the viewer
  * @param target vec3 point the viewer is looking at
  * @param up vec3 pointing "up"
@@ -2404,68 +2337,70 @@ SceneJS._math_scalingMat4s = function(s) {
  * @return {mat4} dest if specified, a new mat4 otherwise
  */
 SceneJS._math_lookAtMat4v = function(pos, target, up, dest) {
-    if(!dest) { dest = SceneJS._math_mat4(); }
-    
-    var posx = pos[0],
-      posy = pos[1],
-      posz = pos[2],
-      upx = up[0],
-      upy = up[1],
-      upz = up[2],
-      targetx = target[0],
-      targety = target[1],
-      targetz = target[2];
-  
-    if (posx == targetx && posy == targety && posz == targetz) {
-      return SceneJS._math_identityMat4();
+    if (!dest) {
+        dest = SceneJS._math_mat4();
     }
-    
+
+    var posx = pos[0],
+            posy = pos[1],
+            posz = pos[2],
+            upx = up[0],
+            upy = up[1],
+            upz = up[2],
+            targetx = target[0],
+            targety = target[1],
+            targetz = target[2];
+
+    if (posx == targetx && posy == targety && posz == targetz) {
+        return SceneJS._math_identityMat4();
+    }
+
     var z0,z1,z2,x0,x1,x2,y0,y1,y2,len;
-    
+
     //vec3.direction(eye, center, z);
     z0 = posx - targetx;
     z1 = posy - targety;
     z2 = posz - targetz;
-    
+
     // normalize (no check needed for 0 because of early return)
-    len = 1/Math.sqrt(z0*z0 + z1*z1 + z2*z2);
+    len = 1 / Math.sqrt(z0 * z0 + z1 * z1 + z2 * z2);
     z0 *= len;
     z1 *= len;
     z2 *= len;
-    
+
     //vec3.normalize(vec3.cross(up, z, x));
-    x0 = upy*z2 - upz*z1;
-    x1 = upz*z0 - upx*z2;
-    x2 = upx*z1 - upy*z0;
-    len = Math.sqrt(x0*x0 + x1*x1 + x2*x2);
+    x0 = upy * z2 - upz * z1;
+    x1 = upz * z0 - upx * z2;
+    x2 = upx * z1 - upy * z0;
+    len = Math.sqrt(x0 * x0 + x1 * x1 + x2 * x2);
     if (!len) {
-      x0 = 0;
-      x1 = 0;
-      x2 = 0;
+        x0 = 0;
+        x1 = 0;
+        x2 = 0;
     } else {
-      len = 1/len;
-      x0 *= len;
-      x1 *= len;
-      x2 *= len;
+        len = 1 / len;
+        x0 *= len;
+        x1 *= len;
+        x2 *= len;
     }
-    
+
     //vec3.normalize(vec3.cross(z, x, y));
-    y0 = z1*x2 - z2*x1;
-    y1 = z2*x0 - z0*x2;
-    y2 = z0*x1 - z1*x0;
-    
-    len = Math.sqrt(y0*y0 + y1*y1 + y2*y2);
+    y0 = z1 * x2 - z2 * x1;
+    y1 = z2 * x0 - z0 * x2;
+    y2 = z0 * x1 - z1 * x0;
+
+    len = Math.sqrt(y0 * y0 + y1 * y1 + y2 * y2);
     if (!len) {
-      y0 = 0;
-      y1 = 0;
-      y2 = 0;
+        y0 = 0;
+        y1 = 0;
+        y2 = 0;
     } else {
-      len = 1/len;
-      y0 *= len;
-      y1 *= len;
-      y2 *= len;
+        len = 1 / len;
+        y0 *= len;
+        y1 *= len;
+        y2 *= len;
     }
-    
+
     dest[0] = x0;
     dest[1] = y0;
     dest[2] = z0;
@@ -2478,11 +2413,11 @@ SceneJS._math_lookAtMat4v = function(pos, target, up, dest) {
     dest[9] = y2;
     dest[10] = z2;
     dest[11] = 0;
-    dest[12] = -(x0*posx + x1*posy + x2*posz);
-    dest[13] = -(y0*posx + y1*posy + y2*posz);
-    dest[14] = -(z0*posx + z1*posy + z2*posz);
+    dest[12] = -(x0 * posx + x1 * posy + x2 * posz);
+    dest[13] = -(y0 * posx + y1 * posy + y2 * posz);
+    dest[14] = -(z0 * posx + z1 * posy + z2 * posz);
     dest[15] = 1;
-    
+
     return dest;
 };
 
@@ -2493,7 +2428,9 @@ SceneJS._math_lookAtMat4c = function(posx, posy, posz, targetx, targety, targetz
 
 /** @private */
 SceneJS._math_orthoMat4c = function(left, right, bottom, top, near, far, dest) {
-    if(!dest) { dest = SceneJS._math_mat4(); }
+    if (!dest) {
+        dest = SceneJS._math_mat4();
+    }
     var rl = (right - left);
     var tb = (top - bottom);
     var fn = (far - near);
@@ -2559,16 +2496,18 @@ SceneJS._math_frustumMat4v = function(fmin, fmax) {
 
 /** @private */
 SceneJS._math_frustumMatrix4 = function(left, right, bottom, top, near, far, dest) {
-    if(!dest) { dest = SceneJS._math_mat4(); }
+    if (!dest) {
+        dest = SceneJS._math_mat4();
+    }
     var rl = (right - left);
     var tb = (top - bottom);
     var fn = (far - near);
-    dest[0] = (near*2) / rl;
+    dest[0] = (near * 2) / rl;
     dest[1] = 0;
     dest[2] = 0;
     dest[3] = 0;
     dest[4] = 0;
-    dest[5] = (near*2) / tb;
+    dest[5] = (near * 2) / tb;
     dest[6] = 0;
     dest[7] = 0;
     dest[8] = (right + left) / rl;
@@ -2577,7 +2516,7 @@ SceneJS._math_frustumMatrix4 = function(left, right, bottom, top, near, far, des
     dest[11] = -1;
     dest[12] = 0;
     dest[13] = 0;
-    dest[14] = -(far*near*2) / fn;
+    dest[14] = -(far * near * 2) / fn;
     dest[15] = 0;
     return dest;
 };
@@ -2618,28 +2557,28 @@ SceneJS._math_transformPoints3 = function(m, points) {
     var len = points.length;
     var p0, p1, p2;
     var pi;
-    
+
     // cache values
     var m0 = m[0], m1 = m[1], m2 = m[2], m3 = m[3];
     var m4 = m[4], m5 = m[5], m6 = m[6], m7 = m[7];
     var m8 = m[8], m9 = m[9], m10 = m[10], m11 = m[11];
     var m12 = m[12], m13 = m[13], m14 = m[14], m15 = m[15];
-    
+
     for (var i = 0; i < len; ++i) {
         // cache values
         pi = points[i];
         p0 = pi[0];
         p1 = pi[1];
         p2 = pi[2];
-        
+
         result[i] = [
-          (m0 * p0) + (m4 * p1) + (m8 * p2) + m12,
-          (m1 * p0) + (m5 * p1) + (m9 * p2) + m13,
-          (m2 * p0) + (m6 * p1) + (m10 * p2) + m14,
-          (m3 * p0) + (m7 * p1) + (m11 * p2) + m15
+            (m0 * p0) + (m4 * p1) + (m8 * p2) + m12,
+            (m1 * p0) + (m5 * p1) + (m9 * p2) + m13,
+            (m2 * p0) + (m6 * p1) + (m10 * p2) + m14,
+            (m3 * p0) + (m7 * p1) + (m11 * p2) + m15
         ];
     }
-    
+
     return result;
 };
 
@@ -2663,7 +2602,7 @@ SceneJS._math_projectVec4 = function(v) {
 /** @private */
 SceneJS._math_Plane3 = function (normal, offset, normalize) {
     this.normal = [0.0, 0.0, 1.0 ];
-    
+
     this.offset = 0.0;
     if (normal && offset) {
         var normal0 = normal[0], normal1 = normal[1], normal2 = normal[2];
@@ -2687,9 +2626,9 @@ SceneJS._math_Plane3 = function (normal, offset, normalize) {
 };
 
 /** @private */
-SceneJS._math_MAX_DOUBLE = Number.MAX_VALUE;
+SceneJS._math_MAX_DOUBLE = 100000000;
 /** @private */
-SceneJS._math_MIN_DOUBLE = Number.MIN_VALUE;
+SceneJS._math_MIN_DOUBLE = -100000000;
 
 /** @private
  *
@@ -2712,13 +2651,13 @@ SceneJS._math_Box3 = function(min, max) {
     /** @private */
     this.fromPoints = function(points) {
         var pointsLength = points.length;
-    
+
         for (i = 0; i < pointsLength; ++i) {
             var points_i3 = points[i][3];
             var pDiv0 = points[i][0] / points_i3;
             var pDiv1 = points[i][1] / points_i3;
             var pDiv2 = points[i][2] / points_i3;
-    
+
             if (pDiv0 < this.min[0]) {
                 this.min[0] = pDiv0;
             }
@@ -2728,7 +2667,7 @@ SceneJS._math_Box3 = function(min, max) {
             if (pDiv2 < this.min[2]) {
                 this.min[2] = pDiv2;
             }
-    
+
             if (pDiv0 > this.max[0]) {
                 this.max[0] = pDiv0;
             }
@@ -2746,8 +2685,8 @@ SceneJS._math_Box3 = function(min, max) {
     this.isEmpty = function() {
         return (
                 (this.min[0] >= this.max[0]) &&
-                 (this.min[1] >= this.max[1]) && 
-                 (this.min[2] >= this.max[2])
+                (this.min[1] >= this.max[1]) &&
+                (this.min[2] >= this.max[2])
                 );
     };
 
@@ -2811,7 +2750,7 @@ SceneJS._math_Box3 = function(min, max) {
 SceneJS._math_AxisBox3 = function(min, max) {
     var min0 = min[0], min1 = min[1], min2 = min[2];
     var max0 = max[0], max1 = max[1], max2 = max[2];
-    
+
     this.verts = [
         [min0, min1, min2],
         [max0, min1, min2],
@@ -2883,7 +2822,7 @@ SceneJS._math_billboardMat = function(viewMatrix) {
         SceneJS._math_lenVec4(rotVec[2])
     ];
 
-    var scaleVecRcp = SceneJS._math_mat4(); 
+    var scaleVecRcp = SceneJS._math_mat4();
     SceneJS._math_rcpVec3(scaleVec, scaleVecRcp);
     var sMat = SceneJS._math_scalingMat4v(scaleVec);
     //var sMatInv = SceneJS._math_scalingMat4v(scaleVecRcp);
@@ -2925,15 +2864,15 @@ SceneJS._math_INSIDE_FRUSTUM = 5;
 
 /** @private */
 SceneJS._math_Frustum = function(viewMatrix, projectionMatrix, viewport) {
-    var m = SceneJS._math_mat4(); 
+    var m = SceneJS._math_mat4();
     SceneJS._math_mulMat4(projectionMatrix, viewMatrix, m);
-    
+
     // cache m indexes
     var m0 = m[0], m1 = m[1], m2 = m[2], m3 = m[3];
     var m4 = m[4], m5 = m[5], m6 = m[6], m7 = m[7];
     var m8 = m[8], m9 = m[9], m10 = m[10], m11 = m[11];
     var m12 = m[12], m13 = m[13], m14 = m[14], m15 = m[15];
-    
+
     //var q = [ m[3], m[7], m[11] ]; just reuse m indexes instead of making new var
     var planes = [
         new SceneJS._math_FrustumPlane(m3 - m0, m7 - m4, m11 - m8, m15 - m12),
@@ -2972,11 +2911,11 @@ SceneJS._math_Frustum = function(viewMatrix, projectionMatrix, viewport) {
     SceneJS._math_setRowMat4(rotMatInverse, 1, rotVec[1]);
     SceneJS._math_setRowMat4(rotMatInverse, 2, rotVec[2]);
 
-    if(!this.matrix) {
+    if (!this.matrix) {
         this.matrix = SceneJS._math_mat4();
     }
     SceneJS._math_mulMat4(projectionMatrix, viewMatrix, this.matrix);
-    if(!this.billboardMatrix) {
+    if (!this.billboardMatrix) {
         this.billboardMatrix = SceneJS._math_mat4();
     }
     SceneJS._math_mulMat4(sMatInv, SceneJS._math_mulMat4(rotMatInverse, sMat), this.billboardMatrix);
@@ -2987,27 +2926,18 @@ SceneJS._math_Frustum = function(viewMatrix, projectionMatrix, viewport) {
         var ret = SceneJS._math_INSIDE_FRUSTUM;
         var bminmax = [ box.min, box.max ];
         var plane = null;
+
         for (var i = 0; i < 6; ++i) {
             plane = planes[i];
-            var normal0 = plane.normal[0];
-            var normal1 = plane.normal[1];
-            var normal2 = plane.normal[2];
-            
-            var bminmaxTest0 = bminmax[plane.testVertex[0]][0];
-            var bminmaxTest1 = bminmax[plane.testVertex[1]][1];
-            var bminmaxTest2 = bminmax[plane.testVertex[2]][2];
-            
-            
-            if (((normal0 * bminmaxTest0) +
-                 (normal1 * bminmaxTest1) +
-                 (normal2 * bminmaxTest2) +
+            if (((plane.normal[0] * bminmax[plane.testVertex[0]][0]) +
+                 (plane.normal[1] * bminmax[plane.testVertex[1]][1]) +
+                 (plane.normal[2] * bminmax[plane.testVertex[2]][2]) +
                  (plane.offset)) < 0.0) {
                 return SceneJS._math_OUTSIDE_FRUSTUM;
             }
-
-            if (((normal0 * bminmaxTest0) +
-                 (normal1 * bminmaxTest1) +
-                 (normal2 * bminmaxTest2) +
+            if (((plane.normal[0] * bminmax[1 - plane.testVertex[0]][0]) +
+                 (plane.normal[1] * bminmax[1 - plane.testVertex[1]][1]) +
+                 (plane.normal[2] * bminmax[1 - plane.testVertex[2]][2]) +
                  (plane.offset)) < 0.0) {
                 ret = SceneJS._math_INTERSECT_FRUSTUM;
             }
@@ -3044,7 +2974,6 @@ SceneJS._math_Frustum = function(viewMatrix, projectionMatrix, viewport) {
 
         return viewport[2] * Math.abs(p2[0] - p1[0]);
     };
-
 
 
     this.getProjectedState = function(modelCoords) {
@@ -3106,15 +3035,15 @@ SceneJS._math_Frustum = function(viewMatrix, projectionMatrix, viewport) {
         // cache viewport indexes
         var viewport2 = viewport[2], viewport3 = viewport[3];
 
-        canvasBoxMin0 = (canvasBoxMin0 * (viewport2+15));
-        canvasBoxMin1 = (canvasBoxMin1 * (viewport3+15));
-        canvasBoxMax0 = (canvasBoxMax0 * (viewport2+15));
-        canvasBoxMax1 = (canvasBoxMax1 * (viewport3+15));
+        canvasBoxMin0 = (canvasBoxMin0 * (viewport2 + 15));
+        canvasBoxMin1 = (canvasBoxMin1 * (viewport3 + 15));
+        canvasBoxMax0 = (canvasBoxMax0 * (viewport2 + 15));
+        canvasBoxMax1 = (canvasBoxMax1 * (viewport3 + 15));
 
-        var diagCanvasBoxVec = SceneJS._math_mat4(); 
+        var diagCanvasBoxVec = SceneJS._math_mat4();
         SceneJS._math_subVec2([canvasBoxMax0, canvasBoxMax1],
-                              [canvasBoxMin0, canvasBoxMin1], 
-                              diagCanvasBoxVec);
+                [canvasBoxMin0, canvasBoxMin1],
+                diagCanvasBoxVec);
         var diagCanvasBoxSize = SceneJS._math_lenVec2(diagCanvasBoxVec);
 
         if (canvasBoxMin0 < 0) {
@@ -3132,9 +3061,9 @@ SceneJS._math_Frustum = function(viewMatrix, projectionMatrix, viewport) {
         }
         return {
             canvasBox:  {
-                            min: [canvasBoxMin0, canvasBoxMin1 ],
-                            max: [canvasBoxMax0, canvasBoxMax1 ]
-                        },
+                min: [canvasBoxMin0, canvasBoxMin1 ],
+                max: [canvasBoxMax0, canvasBoxMax1 ]
+            },
             canvasSize: diagCanvasBoxSize
         };
     };
@@ -3259,7 +3188,7 @@ SceneJS._math_normalizeQuaternion = function(q) {
 };
 
 SceneJS._math_conjugateQuaternion = function(q) {
-  return[-q[0],-q[1],-q[2],q[3]];
+    return[-q[0],-q[1],-q[2],q[3]];
 };
 
 SceneJS._math_angleAxisFromQuaternion = function(q) {
@@ -3484,7 +3413,7 @@ SceneJS._webgl_Shader = function(context, type, source, logging) {
     }
     if (!this.valid) {
         throw SceneJS._errorModule.fatalError(
-                new SceneJS.errors.ShaderCompilationFailureException("Shader program failed to compile"));
+                SceneJS.errors.SHADER_COMPILATION_FAILURE, "Shader program failed to compile");
     }
 }
 
@@ -3541,7 +3470,7 @@ SceneJS._webgl_Program = function(hash, lastUsed, context, vertexSources, fragme
 
     if (!this.valid) {
         throw SceneJS._errorModule.fatalError(
-                new SceneJS.errors.ShaderLinkFailureException("Shader program failed to link"));
+                SceneJS.errors.SHADER_LINK_FAILURE, "Shader program failed to link");
     }
 
     /* Discover active uniforms and samplers
@@ -4472,8 +4401,9 @@ SceneJS.Node._ArgParser = new (function() {
         if (args.length > 0) {
             var arg = args[0];
             if (!arg) {
-                throw SceneJS._errorModule.fatalError(new SceneJS.errors.InvalidNodeConfigException
-                        ("First element in node config is null or undefined"));
+                throw SceneJS._errorModule.fatalError(
+                        SceneJS.errors.ILLEGAL_NODE_CONFIG,
+                        "First element in node config is null or undefined");
             }
             if (arg._compile) {   // Determines arg to be a node
                 this._parseChild(arg, args, 1, node);
@@ -4519,7 +4449,7 @@ SceneJS.Node._ArgParser = new (function() {
                     } else if (key == "enabled") {    // Traversal enabled/disabled
                         node._attr.enabled = param;
                     } else if (key == "layer") {     // Rendering layers
-                        node._nodeLayer = param;
+                        node._attr.layer = param;
                     } else {
                         node._params[key] = param;
                     }
@@ -4542,8 +4472,9 @@ SceneJS.Node._ArgParser = new (function() {
             if (arg._compile) { // Determines arg to be a node
                 this._parseChild(arg, args, i + 1, node);
             } else {
-                throw SceneJS._errorModule.fatalError(new SceneJS.errors.InvalidNodeConfigException
-                        ("Unexpected type for node argument " + i + " - expected a child node"));
+                throw SceneJS._errorModule.fatalError(
+                        SceneJS.errors.ILLEGAL_NODE_CONFIG,
+                        "Unexpected type for node argument " + i + " - expected a child node");
             }
         }
     };
@@ -4561,14 +4492,16 @@ SceneJS.Node._ArgParser = new (function() {
         if (i < args.length) {
             arg = args[i];
             if (!arg) {
-                throw SceneJS._errorModule.fatalError(new SceneJS.errors.InvalidNodeConfigException
-                        ("Node argument " + i + " is null or undefined"));
+                throw SceneJS._errorModule.fatalError(
+                        SceneJS.errors.ILLEGAL_NODE_CONFIG,
+                        "Node argument " + i + " is null or undefined");
             }
             if (arg._attr) {
                 this._parseChild(arg, args, i + 1, node);
             } else {
-                throw SceneJS._errorModule.fatalError(new SceneJS.errors.InvalidNodeConfigException
-                        ("Unexpected type for node argument " + i + " - expected a child node"));
+                throw SceneJS._errorModule.fatalError(
+                        SceneJS.errors.ILLEGAL_NODE_CONFIG,
+                        "Unexpected type for node argument " + i + " - expected a child node");
             }
         }
     };
@@ -4628,7 +4561,6 @@ SceneJS.Node.prototype._compileNodes = function(traversalContext, selectedChildr
     var child;
     var childId;
     var i;
-    var needMarshal = true;
 
     if (numChildren > 0) {
         var childTraversalContext;
@@ -4640,7 +4572,6 @@ SceneJS.Node.prototype._compileNodes = function(traversalContext, selectedChildr
             /* Compile module culls child traversal when child compilation not required.
              */
             if (SceneJS._compileModule.preVisitNode(child)) {
-
 
                 SceneJS._flagsModule.preVisitNode(child);
 
@@ -4658,31 +4589,12 @@ SceneJS.Node.prototype._compileNodes = function(traversalContext, selectedChildr
 
                 SceneJS._flagsModule.postVisitNode(child);
 
-            } else {
-                needMarshal = true;
             }
-
             SceneJS._compileModule.postVisitNode(child);
-
-            /* If compile or flag modules prevented descent into any child then we are performing a partial
-             * re-compilation in which we are updating some existing states held by the renderer module.
-             *
-             * During full compilations, we rely on geometry nodes to cause the renderer module to
-             * marshal dirty states accumulated by traversed nodes, however in this case we may not be
-             * visiting those geometries, so we'll trigger that explicitly.
-             */
-            // if (needMarshal) {
-            SceneJS._renderModule.marshallStates();
-            needMarshal = false;
-            //}
-
-
         }
     }
 
-    if (numChildren == 0) {
-        SceneJS._renderModule.marshallStates();
-        needMarshal = true;
+    if (numChildren == 0) {                
         if (! traversalContext.insideRightFringe) { // Last node in the subtree
             if (traversalContext.callback) { // Within subtree of instanced
                 traversalContext.callback(traversalContext); // Visit instance's children as temp children of last node
@@ -4708,15 +4620,15 @@ SceneJS.Node.prototype._compileWithEvents = function(traversalContext) {
     /* Track any user-defined explicit node layer attribute as we traverse the
      * the graph. This is used by state sorting to organise geometries into layers.
      */
-    if (this._nodeLayer) {
+    if (this._attr.layer) {
 
         /* Only render layers that are enabled
          */
-        if (!SceneJS._layerModule.layerEnabled(this._nodeLayer)) {
+        if (!SceneJS._layerModule.layerEnabled(this._attr.layer)) {
             return;
         }
 
-        SceneJS._layerModule.pushLayer(this._nodeLayer);
+        SceneJS._layerModule.pushLayer(this._attr.layer);
     }
 
     /* Flag this node as rendering - while this is true, it is legal
@@ -4759,7 +4671,7 @@ SceneJS.Node.prototype._compileWithEvents = function(traversalContext) {
         this._fireEvent("loading-status", SceneJS._loadStatusModule.diffStatus(loadStatusSnapshot));
     }
 
-  
+
     if (this._listeners["post-rendered"]) {
         this._fireEvent("post-rendered", { });
     }
@@ -4768,7 +4680,7 @@ SceneJS.Node.prototype._compileWithEvents = function(traversalContext) {
      */
     this._rendering = false;
 
-    if (this._nodeLayer) {
+    if (this._attr.layer) {
         SceneJS._layerModule.popLayer();
     }
 };
@@ -4851,6 +4763,24 @@ SceneJS.Node.prototype.getData = function() {
 SceneJS.Node.prototype.setData = function(data) {
     this._attr.data = data;
     return this;
+};
+
+/**
+ * Assigns this node to a layer, in order to control the order in which the geometries within it are rendered.
+ * http://scenejs.wikispaces.com/Layers
+ * @param {string} layer The layer name
+ */
+SceneJS.Node.prototype.setLayer = function(layer) {
+    this._attr.layer = layer;
+};
+
+/**
+ * Returns the name of the layer this node is assigned to.
+ * http://scenejs.wikispaces.com/Layers
+ * @return {string} layer The layer name
+ */
+SceneJS.Node.prototype.getLayer = function() {
+    return this._attr.layer;
 };
 
 /**
@@ -4968,16 +4898,16 @@ SceneJS.Node.prototype.removeNodeAt = function(index) {
 SceneJS.Node.prototype.removeNode = function(node) {
     if (!node) {
         throw SceneJS._errorModule.fatalError(
-                new SceneJS.errors.InvalidSceneGraphException(
-                        "SceneJS.Node#removeNode - node argument undefined"));
+                SceneJS.errors.ILLEGAL_NODE_CONFIG,
+                "SceneJS.Node#removeNode - node argument undefined");
     }
     if (!node._compile) {
         if (typeof node == "string") {
             var gotNode = SceneJS._nodeIDMap[node];
             if (!gotNode) {
                 throw SceneJS._errorModule.fatalError(
-                        new SceneJS.errors.InvalidSceneGraphException(
-                                "SceneJS.Node#removeNode - node not found anywhere: '" + node + "'"));
+                        SceneJS.errors.NODE_NOT_FOUND,
+                        "SceneJS.Node#removeNode - node not found anywhere: '" + node + "'");
             }
             node = gotNode;
         }
@@ -4991,8 +4921,8 @@ SceneJS.Node.prototype.removeNode = function(node) {
         }
     }
     throw SceneJS._errorModule.fatalError(
-            new SceneJS.errors.InvalidSceneGraphException(
-                    "SceneJS.Node#removeNode - child node not found: " + (node._compile ? ": " + node._attr.id : node)));
+            SceneJS.errors.NODE_NOT_FOUND,
+            "SceneJS.Node#removeNode - child node not found: " + (node._compile ? ": " + node._attr.id : node));
 };
 
 /** Removes all child nodes and returns them in an array.
@@ -5016,8 +4946,8 @@ SceneJS.Node.prototype.removeNodes = function() {
 SceneJS.Node.prototype.addNodes = function(nodes) {
     if (!nodes) {
         throw SceneJS._errorModule.fatalError(
-                new SceneJS.errors.InvalidSceneGraphException(
-                        "SceneJS.Node#addNodes - nodes argument is undefined"));
+                SceneJS.errors.ILLEGAL_NODE_CONFIG,
+                "SceneJS.Node#addNodes - nodes argument is undefined");
     }
     for (var i = nodes.length - 1; i >= 0; i--) {
         this.addNode(nodes[i]);
@@ -5033,16 +4963,16 @@ SceneJS.Node.prototype.addNodes = function(nodes) {
 SceneJS.Node.prototype.addNode = function(node) {
     if (!node) {
         throw SceneJS._errorModule.fatalError(
-                new SceneJS.errors.InvalidSceneGraphException(
-                        "SceneJS.Node#addNode - node argument is undefined"));
+                SceneJS.errors.ILLEGAL_NODE_CONFIG,
+                "SceneJS.Node#addNode - node argument is undefined");
     }
     if (!node._compile) {
         if (typeof node == "string") {
             var gotNode = SceneJS._nodeIDMap[node];
             if (!gotNode) {
                 throw SceneJS._errorModule.fatalError(
-                        new SceneJS.errors.InvalidSceneGraphException(
-                                "SceneJS.Node#addNode - node not found: '" + node + "'"));
+                        SceneJS.errors.ILLEGAL_NODE_CONFIG,
+                        "SceneJS.Node#addNode - node not found: '" + node + "'");
             }
             node = gotNode;
         } else {
@@ -5051,13 +4981,13 @@ SceneJS.Node.prototype.addNode = function(node) {
     }
     if (!node._compile) {
         throw SceneJS._errorModule.fatalError(
-                new SceneJS.errors.InvalidSceneGraphException(
-                        "SceneJS.Node#addNode - node argument is not a SceneJS.Node or subclass!"));
+                SceneJS.errors.ILLEGAL_NODE_CONFIG,
+                "SceneJS.Node#addNode - node argument is not a SceneJS.Node or subclass!");
     }
     if (node._parent != null) {
         throw SceneJS._errorModule.fatalError(
-                new SceneJS.errors.InvalidSceneGraphException(
-                        "SceneJS.Node#addNode - node argument is still attached to another parent!"));
+                SceneJS.errors.ILLEGAL_NODE_CONFIG,
+                "SceneJS.Node#addNode - node argument is still attached to another parent!");
     }
     this._children.push(node);
     node._parent = this;
@@ -5086,21 +5016,21 @@ SceneJS.Node.prototype.findNodeIndex = function(sid) {
 SceneJS.Node.prototype.insertNode = function(node, i) {
     if (!node) {
         throw SceneJS._errorModule.fatalError(
-                new SceneJS.errors.InvalidSceneGraphException(
-                        "SceneJS.Node#insertNode - node argument is undefined"));
+                SceneJS.errors.ILLEGAL_NODE_CONFIG,
+                "SceneJS.Node#insertNode - node argument is undefined");
     }
     if (!node._compile) {
         node = SceneJS._parseNodeJSON(node);
     }
     if (!node._compile) {
         throw SceneJS._errorModule.fatalError(
-                new SceneJS.errors.InvalidSceneGraphException(
-                        "SceneJS.Node#insertNode - node argument is not a SceneJS.Node or subclass!"));
+                SceneJS.errors.ILLEGAL_NODE_CONFIG,
+                "SceneJS.Node#insertNode - node argument is not a SceneJS.Node or subclass!");
     }
     if (node._parent != null) {
         throw SceneJS._errorModule.fatalError(
-                new SceneJS.errors.InvalidSceneGraphException(
-                        "SceneJS.Node#insertNode - node argument is still attached to another parent!"));
+                SceneJS.errors.ILLEGAL_NODE_CONFIG,
+                "SceneJS.Node#insertNode - node argument is still attached to another parent!");
     }
 
     if (i == undefined || i == null) {
@@ -5120,8 +5050,8 @@ SceneJS.Node.prototype.insertNode = function(node, i) {
 
     } else if (i < 0) {
         throw SceneJS._errorModule.fatalError(
-                new SceneJS.errors.InvalidSceneGraphException(
-                        "SceneJS.Node#insertNode - node index out of range: -1"));
+                SceneJS.errors.ILLEGAL_NODE_CONFIG,
+                "SceneJS.Node#insertNode - node index out of range: -1");
 
     } else if (i >= this._children.length) {
         this._children.push(node);
@@ -5631,6 +5561,8 @@ SceneJS.bind = function(name, func) {
                 SceneJS._eventModule.ERROR,
                 function(params) {
                     func({
+                        code: params.code,
+                        errorName: params.errorName,
                         exception: params.exception,
                         fatal: params.fatal
                     });
@@ -5758,9 +5690,9 @@ SceneJS._compileModule = new (function() {
 
     var debugCfg;
 
-    /* Compile enabled by default
+    /* Compile disabled by default
      */
-    this._enableCompile = true;
+    this._enableCompiler = false;
 
     /* Stack to track nodes during scene traversal. Public push and pop methods are used with this
      * to track which nodes are within subgraphs that are targeted by instance nodes, in order to flag
@@ -5768,33 +5700,27 @@ SceneJS._compileModule = new (function() {
      */
     var nodeStack = new Array(500);
     var stackLen = 0;
-    var countInstanceLinks = 0;     // Incremented as we traverse an instance link, decremented as we return
-    var traversalDepth = 0;         // Incremented when we push a node, decremented when we pop
 
-    var countCompilingBranches = 0;
-
-    /* During traversal, flags by ID which nodes are within instanced subgraphs.
-     * Node IDs set on this when we push a node.
-     *
-     * Never unset, because only used for that node when we are between push and pop for that node.
+    /* Incremented as we traverse instance link, decremented as we return
      */
-    this.instancedNodes = {};
+    var countTraversedInstanceLinks = 0;
 
-    /* During traversal, records depth of nodes - only meaningful when they are NOT within instanced subgraphs.
-     *
-     * This is used for ordering those nodes flagged COMPILE_SUBGRAPH and COMPILE_NODE. Note that for nodes
-     * within instanced subgraph, the compile module bumps COMPILE_NODE and COMPILE_NODE up to COMPILE_PATH,
-     * so depths are not used with instanced nodes.
-     *
-     * Incremented when we push a node. Never reset, because only used for that node when we are
-     * between push and pop for that node.
+    /* Incremented when we traverse into a node that is flagged for entire subtree
+     * compilation, decremented on return
      */
-    this.nonInstancedNodeDepths = {};
+    var countTraversedSubtreesToCompile = 0;
 
-    /*-----------------------------------------------------------------------------------------------------------------
-     * Flags which guide scene traversal during compilation, set by traversal of compilation queue (below)
-     *
-     *----------------------------------------------------------------------------------------------------------------*/
+    /* Flag for each node indicating if it is within subtree or target of an instance node.
+     * Updated when node is traversed.
+     * When compiler notified of node update, bumps COMPILE_NODE and COMPILE_SUBTREE up to COMPILE_BRANCH.
+     * Cleared when scene compiled.
+     * Synchronised for node relocation, which causes COMPILE_SCENE, which then overrides all notifications.
+     */
+    this._nodeInstanced = {};
+
+    /* Flag for each node indicating if it must always be recompiled
+     */
+    this._nodeAlwaysCompile = {};
 
     /**
      * Set by #setForceSceneCompile, forces compilation module
@@ -5807,7 +5733,7 @@ SceneJS._compileModule = new (function() {
      * soon as traversal complete. Does not determine what is actually
      * compiled during the traversal.
      */
-    this._needNewCompile = true;
+    this.triggerCompile = true;
 
     /**
      * True when all nodes need compilation
@@ -5815,9 +5741,11 @@ SceneJS._compileModule = new (function() {
     this._needCompileScene = false;
 
     /**
-     * True when there are nodes that require COMPILE_NODE or COMPILE_SUBTREE
+     * Tracks highest compilation level selected for each node that compiler receives update notification on.
+     * Is emptied after compilation. A notification that would result in lower compilation level than already stored
+     * for each node are ignored.
      */
-    this.need_subtreeRootsToCompile = false;
+    this._nodeCompilationLevels = {};
 
     /**
      * IDs of nodes that require re-render
@@ -5829,12 +5757,9 @@ SceneJS._compileModule = new (function() {
      */
     this._subtreeRootsToCompile = {};
 
-    /*
+    /* When traversal is inside these nodes, every node encountered is compiled
      */
     this._nodesWithinBranches = {};
-
-
-    this._withinCompilingBranch = false;
 
 
     /*-----------------------------------------------------------------------------------------------------------------
@@ -5843,6 +5768,8 @@ SceneJS._compileModule = new (function() {
      * and are processed and cleared before each scene traversal to set combinations of the traversal flags
      * defined above.
      *---------------------------------------------------------------------------------------------------------------*/
+
+    this._sceneCompilationQueued = false;
 
     this._compilationQueue = new (function() {
         var contents = [];
@@ -5894,10 +5821,11 @@ SceneJS._compileModule = new (function() {
 
                 debugCfg = SceneJS._debugModule.getConfigs("compilation");
 
-                self._enableCompile = (debugCfg.enabled === false) ? false : true;  
+                self._enableCompiler = (debugCfg.enabled === false) ? false : true;
 
                 /* Start with a fresh compilation queue on SceneJS init
                  */
+                self._sceneCompilationQueued = false;
                 self._compilationQueue.clear();
             });
 
@@ -5905,42 +5833,34 @@ SceneJS._compileModule = new (function() {
             SceneJS._eventModule.SCENE_COMPILING,
             function(params) {
 
+                /* Reset compilation trigger - may be set again during compilation
+                 * by nodes like interpolate as they ask for another compilation pass
+                 */
+                self.triggerCompile = false;
+
                 /* Ready to note nodes that are within
-                 * instanced subtrees in instancedNodes
+                 * instanced subtrees in _nodeInstanced
                  */
                 stackLen = 0;
-                countInstanceLinks = 0;
+                countTraversedInstanceLinks = 0;
 
                 /*
                  */
-                countCompilingBranches = 0;
-
-                /* Ready to track node depths in nonInstancedNodeDepths
-                 */
-                traversalDepth = 0;
-
-                /* We'll know if we need a compile
-                 * when we recompute compilation flags next
-                 */
-                self._needNewCompile = false;
+                countTraversedSubtreesToCompile = 0;
 
                 /* Recompute compilation flags
                  */
-                if (!self._forceSceneCompile && self._enableCompile) {
+                if (!self._forceSceneCompile && self._enableCompiler) {
                     self._scheduleCompilations();
                 }
 
                 /* Initiate (re)compilation
                  */
-                var compileMode = (self._needCompileScene || self._forceSceneCompile || (!self._enableCompile))
+                var compileMode = (self._needCompileScene || self._forceSceneCompile || (!self._enableCompiler))
                         ? SceneJS._renderModule.COMPILE_SCENE
                         : SceneJS._renderModule.COMPILE_NODES;
 
-                SceneJS._renderModule.renderScene({
-                    sceneId: params.sceneId
-                }, {
-                    compileMode: compileMode
-                });
+                SceneJS._renderModule.bindScene({ sceneId: params.sceneId }, { compileMode: compileMode });
             });
 
     SceneJS._eventModule.addListener(
@@ -5950,13 +5870,19 @@ SceneJS._compileModule = new (function() {
                 self._forceSceneCompile = false;  // One-shot effect per pass
 
                 /* Since we recompute compilation flags from the compilation queue on
-                 * next SCENE_COMPILING we can unset them now
+                 * next SCENE_COMPILING we can unset them now.
+                 *
+                 * We dont reset triggerCompile because a node may be set during compilation
+                 * to trigger another compilation pass.
                  */
+
                 self._needCompileScene = false;
                 self._needCompileSubtrees = false;
+                self._nodeCompilationLevels = {};
                 self._subtreeRootsToCompile = {};
                 self._dirtyNodes = {};
                 self._nodesWithinBranches = {};
+                self._sceneCompilationQueued = false;
             });
 
     /*-----------------------------------------------------------------------------------------------------------------
@@ -6000,23 +5926,23 @@ SceneJS._compileModule = new (function() {
             "set" : {
                 attr: {
 
-//                    "enabled": {
-//                        level: this.COMPILE_BRANCH
-//                    },
+                    //                    "enabled": {
+                    //                        level: this.COMPILE_BRANCH
+                    //                    },
 
                     "flags": {
                         attr: {
                             transparent: {
-                                level: this.COMPILE_SCENE
+                                level: this.COMPILE_BRANCH
                             },
                             enabled: {
-                                level: this.COMPILE_SCENE
+                                level: this.COMPILE_BRANCH
                             },
                             picking: {
-                                level: this.COMPILE_SCENE
+                                level: this.COMPILE_BRANCH
                             },
                             colortrans: {
-                                level: this.COMPILE_PATH
+                                level: this.COMPILE_BRANCH
                             }
                         },
                         level: this.COMPILE_SCENE
@@ -6034,19 +5960,27 @@ SceneJS._compileModule = new (function() {
                         attr: {
 
                             transparent: {
-                                level: this.COMPILE_SCENE
+                                level: this.COMPILE_BRANCH
                             },
                             enabled: {
-                                level: this.COMPILE_SCENE
+                                level: this.COMPILE_BRANCH
                             },
                             picking: {
-                                level: this.COMPILE_SCENE
+                                level: this.COMPILE_BRANCH
                             },
                             colortrans: {
-                                level: this.COMPILE_PATH
+                                level: this.COMPILE_BRANCH
                             }
                         },
 
+                        level: this.COMPILE_SCENE
+                    },
+
+                    "node": {
+                        level: this.COMPILE_SCENE
+                    },
+
+                    "nodes": {
                         level: this.COMPILE_SCENE
                     }
                 },
@@ -6073,51 +6007,125 @@ SceneJS._compileModule = new (function() {
             }
         },
 
+        /*-----------------------------------------------------------------------------------
+         * billboard
+         *---------------------------------------------------------------------------------*/
+
+        "billboard": {
+            alwaysCompile: true
+        },
+
+        /*-----------------------------------------------------------------------------------
+         * clip
+         *---------------------------------------------------------------------------------*/
+
+        "clip": {
+            set: {
+                level: this.COMPILE_BRANCH
+            },
+            inc: {
+                level: this.COMPILE_BRANCH
+            }
+            //            ,
+            //            alwaysCompile: true
+        },
+
+        /*-----------------------------------------------------------------------------------
+         * colortrans
+         *---------------------------------------------------------------------------------*/
+
+        "colortrans": {
+            set: {
+                level: this.COMPILE_BRANCH
+            },
+            inc: {
+                level: this.COMPILE_BRANCH
+            },
+            mul: {
+                level: this.COMPILE_BRANCH
+            }
+        },
+
+        /*-----------------------------------------------------------------------------------
+         * deform
+         *---------------------------------------------------------------------------------*/
+
+        "deform": {
+            //alwaysCompile: true
+        },
+
+        /*-----------------------------------------------------------------------------------
+         * deform
+         *---------------------------------------------------------------------------------*/
+
+        "boundingBox": {
+            alwaysCompile: true
+        },
+
+        /*-----------------------------------------------------------------------------------
+         * lights
+         *---------------------------------------------------------------------------------*/
+
+        "lights": {
+            //alwaysCompile: true
+        },
+
         "scene" : {
             "created" : {
+                level: this.COMPILE_SCENE
+            },
+            "start" : {
                 level: this.COMPILE_SCENE
             }
         },
 
-        "colortrans": {
-            set: {
-                level: this.COMPILE_PATH
-            },
-            inc: {
-                level: this.COMPILE_PATH
-            },
-            mul: {
-                level: this.COMPILE_PATH
-            }
-        },
 
         /* Transform nodes require many things below them to recompile,
          * such as transforms and boundingBoxes
          */
+
         "scale": {
             set: {
-                level: this.COMPILE_SCENE
+                level: this.COMPILE_BRANCH
             },
             inc: {
-                level: this.COMPILE_SCENE
+                level: this.COMPILE_BRANCH
             }
         },
 
+        /*-----------------------------------------------------------------------------------
+         * stationary
+         *---------------------------------------------------------------------------------*/
+
+        "stationary": {
+            alwaysCompile: true
+        },
+
+
         "rotate": {
             set: {
-                level: this.COMPILE_SCENE
+                level: this.COMPILE_BRANCH
             },
             inc: {
-                level: this.COMPILE_SCENE
+                level: this.COMPILE_BRANCH
             }
         },
 
         "translate": {
             set: {
-                level: this.COMPILE_SCENE
+                level: this.COMPILE_BRANCH
             },
             inc: {
-                level: this.COMPILE_SCENE
+                level: this.COMPILE_BRANCH
+            }
+        },
+
+        "quaternion": {
+            set: {
+                level: this.COMPILE_BRANCH
+            },
+            add: {
+                level: this.COMPILE_BRANCH
             }
         },
 
@@ -6126,16 +6134,22 @@ SceneJS._compileModule = new (function() {
         "lookAt": {
             set: {
                 level: this.COMPILE_PATH
+            },
+            inc: {
+                level: this.COMPILE_PATH
             }
         },
 
         "camera": {
             set: {
                 level: this.COMPILE_PATH
+            },
+            inc: {
+                level: this.COMPILE_PATH
             }
         },
 
-        /* Setting state on a morphGeometry does not affect anything else in the scene
+        /*
          */
         "morphGeometry": {
             set: {
@@ -6147,7 +6161,7 @@ SceneJS._compileModule = new (function() {
          */
         "instance": {
             "searching": {
-                level: this.COMPILE_SCENE
+                level: this.COMPILE_BRANCH
             }
         },
 
@@ -6161,6 +6175,14 @@ SceneJS._compileModule = new (function() {
 
             "loadedImagebuf": {
                 level: this.COMPILE_SCENE   // TODO: got to be a tighter rule - maybe compile imagebuf's subtree then texture's branch?
+            },
+
+            set: {
+                attr: {
+                    layers: {
+                        level: this.COMPILE_BRANCH
+                    }
+                }
             }
         },
 
@@ -6169,7 +6191,7 @@ SceneJS._compileModule = new (function() {
         "geometry": {
 
             "loaded": {
-                level: this.COMPILE_SCENE
+                level: this.COMPILE_BRANCH
             }
         },
 
@@ -6178,7 +6200,7 @@ SceneJS._compileModule = new (function() {
         "text": {
 
             "loadedImage": {
-                level: this.COMPILE_SCENE
+                level: this.COMPILE_BRANCH
             }
         },
 
@@ -6221,8 +6243,8 @@ SceneJS._compileModule = new (function() {
      */
     this.nodeUpdated = function(node, op, attrName, value) {
 
-        if (!this._enableCompile) {
-            this._needNewCompile = true;    // When compile disabled, any update triggers a render.
+        if (!this._enableCompiler) {
+            this.triggerCompile = true;
             return;
         }
 
@@ -6232,7 +6254,7 @@ SceneJS._compileModule = new (function() {
 
         // TODO: peek at top of queue to see if COMPILE_SCENE stacked
 
-        //        if (this._needCompileScene) { // Whole scene already flagged for recompile anyway
+        //        if (this._sceneCompilationQueued) { // Whole scene already flagged for recompile anyway
         //            return;
         //        }
 
@@ -6256,17 +6278,20 @@ SceneJS._compileModule = new (function() {
             return;
         }
 
-        this._needNewCompile = true; // At this point we know we'll need to compile something
+        /* Set compilation trigger - this may be while scene is sleeping,
+         * or during a compilation pass to trigger another one
+         */
+        this.triggerCompile = true;
 
         if (level === undefined) {
             level = this.COMPILE_SCENE;
         }
 
-        //  if (level === undefined || level == this.COMPILE_SCENE) {
-        // this._needCompileScene = true;
-        // this._compilationQueue.clear(); // No point in building compilation list any more
-        //  return;
-        // }
+        //        if (level == this.COMPILE_SCENE) {
+        //            this._sceneCompilationQueued = true;
+        //            this._compilationQueue.clear(); // No point in building compilation list any more
+        //            return;
+        //        }
 
         /* COMPILE_SUBTREE and COMPILE_NODE get bumped up to COMPILE_BRANCH
          * when the target node is found to be within a subtree that is targeted by
@@ -6274,15 +6299,17 @@ SceneJS._compileModule = new (function() {
          * instance node defines child nodes, then they become surrogate children
          * of the target sub-graph's right-most node.
          */
-        if (this.instancedNodes[nodeId]) {
+        if (this._nodeInstanced[nodeId]) {
             if (level == this.COMPILE_SUBTREE || level == this.COMPILE_NODE) {
                 level = this.COMPILE_BRANCH;
             }
         }
 
-        //******************************************
-        // HACKS until we get COMPILE_SUBTREE going
-        //******************************************
+        /*------------------------------------------------------------------------------------------------
+         * HACKS
+         *
+         * Until we get COMPILE_SUBTREE and COMPILE_NODE working, we'll bump those up to COMPILE_BRANCH.
+         *-----------------------------------------------------------------------------------------------*/
 
         if (level == this.COMPILE_SUBTREE) {
             level = this.COMPILE_BRANCH;
@@ -6291,6 +6318,13 @@ SceneJS._compileModule = new (function() {
         if (level == this.COMPILE_NODE) {
             level = this.COMPILE_PATH;
         }
+
+        /* Only reschedule compilation for node if new level is more general.
+         */
+        if (this._nodeCompilationLevels[nodeId] <= level) {
+            return;
+        }
+        this._nodeCompilationLevels[nodeId] = level;
 
         var priority = level;
 
@@ -6440,10 +6474,15 @@ SceneJS._compileModule = new (function() {
             SceneJS._loggingModule.info("");
         }
 
+
+        //        if (this._sceneCompilationQueued) {
+        //            this._needCompileScene = true;
+        //        }
+
+
         while (!this._needCompileScene && this._compilationQueue.size() > 0) {
 
             compilation = this._compilationQueue.pop();
-
 
             level = compilation.level;
             node = compilation.node;
@@ -6456,7 +6495,7 @@ SceneJS._compileModule = new (function() {
                 if (minLevel <= level && level <= maxLevel) {
                     SceneJS._loggingModule.info("Compiling - level: "
                             + levelNameStrings[compilation.level] + ", node: "
-                            + compilation.node._attr.nodeType + ", op: "
+                            + compilation.node._attr.nodeType + ", node ID: " + compilation.node._attr.id + ", op: "
                             + compilation.op + ", attr: "
                             + compilation.attrName);
                 }
@@ -6504,26 +6543,46 @@ SceneJS._compileModule = new (function() {
      */
     this._recompilePath = function(targetNode) {
         var dirtyNodes = this._dirtyNodes;
-        if (dirtyNodes[targetNode._attr.id]) { // Optimise for multiple updates on same node
-                   return;
-        }
+        //        if (dirtyNodes[id]) { // Node on path already marked, along with all instances of it
+        //                return;
+        //            }
+        //        if (this._nodesWithinBranches[targetNode._attr.id]) { // Optimise for multiple updates on same node
+        //            return;
+        //        }
         var nodeInstances;
         var id;
         var node = targetNode;
         while (node) {
             id = node._attr.id;
-            if (dirtyNodes[id]) { // Node on path already marked, along with all instances of it
-                return;
+
+            /*
+             */
+            //            if (dirtyNodes[id]) { // Node on path already marked, along with all instances of it
+            //                return;
+            //            }
+            //             if (this._nodesWithinBranches[id]) { // Node on path already marked, along with all instances of it
+            //                return;
+            //            }
+
+            /* Ensure that instance allows compilation of the entire subgraph of its symbol
+             * because the updated node will be a temporary child of the symbol subgraph's
+             * rightmost leaf - otherwise the symbol subgraph will cull compilation of the
+             * updated node if the subgraph is not flagged for compilation.
+             */
+            if (node._attr.nodeType == "instance") {
+                this._nodesWithinBranches[id] = true;
             }
             dirtyNodes[id] = true;
             nodeInstances = SceneJS._nodeInstanceMap[id];
             if (nodeInstances) {
                 for (var instanceNodeId in nodeInstances.instances) {
                     if (nodeInstances.instances.hasOwnProperty(instanceNodeId)) {
+                        this._nodesWithinBranches[instanceNodeId] = true;
                         this._recompilePath(SceneJS._nodeIDMap[instanceNodeId]);
                     }
                 }
             }
+
             node = node._parent;
         }
     };
@@ -6540,74 +6599,111 @@ SceneJS._compileModule = new (function() {
      */
     this.preVisitNode = function(node) {
 
-        if (!this._enableCompile) {
+
+
+        /* Compile indiscriminately if scheduler disabled
+         */
+        if (!this._enableCompiler) {
             return true;
         }
 
+        var config = compileConfig[node._attr.nodeType];
+
+        /* When doing complete indescriminate scene compile, take this opportunity
+         * to flag paths to nodes that must always be compiled
+         */
+        if (this._needCompileScene) {
+            if (config && config.alwaysCompile) {
+                if (!this._nodeAlwaysCompile[nodeId]) {   // Only happens once
+                    this._alwaysCompilePath(node);
+                }
+            }
+        }
+
+        /* Compile indiscriminately if forced
+         */
         if (this._forceSceneCompile) {
             return true;
         }
 
+        /* Track compilation path into scene graph
+         */
         nodeStack[stackLen++] = node;
 
         var nodeId = node._attr.id;
 
-        /* Track nodes within instanced subgraphs
+        /* Track nodes within instances
          */
-        this.instancedNodes[nodeId] = (countInstanceLinks > 0);
+        this._nodeInstanced[nodeId] = (countTraversedInstanceLinks > 0);
 
-        /* Track instances
+        /* Track number of nodes compiling within subtrees of instances 
          */
         if (node._attr.nodeType == "instance") {
-            countInstanceLinks++;
+            countTraversedInstanceLinks++;
         }
 
-        if (this._nodesWithinBranches[nodeId] === true) {
-            countCompilingBranches++;
-        }
-
-        var needCompile = this._needCompileNode(node);
-
-        /* Track node traversal depth if node is not within instanced subtree
+        /* Compile entire subtree when within a subtree flagged for complete compile,
+         * or when within a node that must always be compiled
          */
-        if (countInstanceLinks == 0) {
-            this.nonInstancedNodeDepths[nodeId] = traversalDepth;
-        }
-        traversalDepth++;
 
-        return needCompile;
-    };
-
-    /**
-     * Returns true if the given node requires recompilation during
-     * the current traversal
-     */
-    this._needCompileNode = function(node) {
-
-        if (this._needCompileScene) {            // Whole scene needs compilation
-            return true;
+        if (this._nodesWithinBranches[nodeId] === true || (config && config.alwaysCompile)) {
+            countTraversedSubtreesToCompile++;
         }
-        if (!node) {
-            return false;
-        }
-        if (countCompilingBranches > 0) {
+
+        /* Compile every node when doing indiscriminate scene compile
+         */
+        if (this._needCompileScene) {
             return true;
         }
 
-        var nodeId = node._attr.id;
+        /* Compile every node flagged for indiscriminate compilation
+         */
+        if (this._nodeAlwaysCompile[nodeId]) {
+            return true;
+        }
+
+        /* Compile every node
+         */
+        if (countTraversedSubtreesToCompile > 0) {
+            return true;
+        }
+
         if (this._dirtyNodes[nodeId] === true) {
             return true;
         }
-        if (this._nodesWithinBranches[nodeId] === true) {
-            return true;
-        }
-        if (this._subtreeRootsToCompile[nodeId]) {
-            return true;
-        }
-        var x = 9;
 
+        return false;
+    };
 
-        return x != 9;
+    this._alwaysCompilePath = function(targetNode) {
+        var nodeInstances;
+        var id;
+        var node = targetNode;
+        while (node) {
+            id = node._attr.id;
+
+            this._nodeAlwaysCompile[id] = true;
+
+            //            /* Ensure that instance allows compilation of the entire subgraph of its symbol
+            //             * because the updated node will be a temporary child of the symbol subgraph's
+            //             * rightmost leaf - otherwise the symbol subgraph will cull compilation of the
+            //             * updated node if the subgraph is not flagged for compilation.
+            //             */
+            //            if (node._attr.nodeType == "instance") {
+            //                this._nodeAlwaysCompile[id] = true;
+            //            }
+            //  this._nodesWithinBranches[instanceNodeId] = true;
+            nodeInstances = SceneJS._nodeInstanceMap[id];
+            if (nodeInstances) {
+                for (var instanceNodeId in nodeInstances.instances) {
+                    if (nodeInstances.instances.hasOwnProperty(instanceNodeId)) {
+                        this._nodeAlwaysCompile[instanceNodeId] = true;
+                        this._alwaysCompilePath(SceneJS._nodeIDMap[instanceNodeId]);
+                    }
+                }
+            }
+            node = node._parent;
+        }
     };
 
     this.postVisitNode = function(node) {
@@ -6617,31 +6713,13 @@ SceneJS._compileModule = new (function() {
             if (peekNode._attr.id == nodeId) {
                 stackLen--;
                 if (node._attr.nodeType == "instance") {
-                    countInstanceLinks--;
+                    countTraversedInstanceLinks--;
                 }
-                traversalDepth--;
-
-                if (this._nodesWithinBranches[nodeId] === true) {
-                    countCompilingBranches--;
+                var config = compileConfig[node._attr.nodeType];
+                if (this._nodesWithinBranches[nodeId] === true || (config && config.alwaysCompile)) {
+                    countTraversedSubtreesToCompile--;
                 }
-            }
-        }
-    };
 
-    /**
-     * Iterates over isolated subtrees that need compilation.
-     *
-     * The subtrees are each to be traversed, using needCompileNode
-     * at each node to guide desecent.
-     */
-    this.withSubTreesToCompile = function(func) {
-        if (this._forceSceneCompile || (!this._enableCompile)) {
-            return;
-        }
-        var subtrees = SceneJS._compileModule._subtreeRootsToCompile;
-        for (var nodeId in subtrees) {
-            if (subtrees.hasOwnProperty(nodeId)) {
-                func(subtrees[nodeId]);
             }
         }
     };
@@ -6852,28 +6930,22 @@ SceneJS._errorModule = new (function() {
                 SceneJS._eventModule.fireEvent(SceneJS._eventModule.TIME_UPDATED, time);
             });
 
-    // @private
-    this.fatalError = function(e) {
-        e = e.message ? e : new SceneJS.errors.Exception(e);
-
-        /* Dont log because exception should be thrown        
-         */
+    this.fatalError = function(code, message) {
         SceneJS._eventModule.fireEvent(SceneJS._eventModule.ERROR, {
-            exception: e,
+            errorName: SceneJS.errors._getErrorName(code) || "ERROR",
+            code: code,
+            exception: message,
             fatal: true
         });
-        return e.message;
+        return new SceneJS.errors.Exception(code, message);
     };
 
-    // @private
-    this.error = function(e) {
-        e = e.message ? e : new SceneJS.errors.Exception(e);
-        SceneJS._loggingModule.error(e.message);
+    this.error = function(code, message) {
         SceneJS._eventModule.fireEvent(SceneJS._eventModule.ERROR, {
-            exception: e,
+            code: code,
+            exception: message,
             fatal: false
         });
-        return e.message;
     };
 })();
 /**
@@ -6911,6 +6983,7 @@ SceneJS._layerModule = new (function() {
     this.DEFAULT_LAYER_NAME = "___default";
 
     var enabledLayers;
+    var layerMap;
     var layerOrder;
 
     var layerStack = new Array(500);
@@ -6927,33 +7000,57 @@ SceneJS._layerModule = new (function() {
 
     this.setActiveLayers = function(layers) {
         enabledLayers = {};
+        layerMap = {};
         layerOrder = [
             {
-                name: this.DEFAULT_LAYER_NAME,
+                name: this.DEFAULT_LAYER_NAME, // Default layer - implicitly enabled
                 priority: 0
             }
         ];
-
         if (layers) {
-            var priority;
-            for (var layerName in layers) {
-                if (layers.hasOwnProperty(layerName)) {
-                    priority = layers[layerName];
-                    insertLayer(layerName, priority);
+            if (SceneJS._isArray(layers)) {
+
+                /* Array of layer names - no sorting
+                 */
+                for (var i = 0, len = layers.length; i < len; i++) {
+                    appendLayer(layers[i], 0);
+                }
+            } else {
+
+                /* Map of layer names - do sorting
+                 */
+                var priority;
+                for (var layerName in layers) {
+                    if (layers.hasOwnProperty(layerName)) {
+                        priority = layers[layerName];
+                        insertLayer(layerName, priority);
+                    }
                 }
             }
         }
     };
 
-    function insertLayer(layerName, priority) {
+    /* Append layer for when sorting not done
+     */
+    function appendLayer(layerName, priority) {
         enabledLayers[layerName] = true;
-
-        /* Insert layer name
-         */
         var newLayer = {
             name: layerName,
             priority: priority
         };
+        layerMap[layerName] = newLayer;
+        layerOrder.push(newLayer);
+    }
+
+    /* Insert layer for when sorting is done
+     */
+    function insertLayer(layerName, priority) {
+        enabledLayers[layerName] = true;
+        var newLayer = {
+            name: layerName,
+            priority: priority
+        };
+        layerMap[layerName] = newLayer;
         var layer;
         for (var i = layerOrder.length - 1; i >= 0; i--) {
             layer = layerOrder[i];
@@ -6967,7 +7064,18 @@ SceneJS._layerModule = new (function() {
         layerOrder.push(newLayer);
     }
 
-    this.getLayerOrder = function() {
+    /**
+     * Get the priority of an enabled layer.
+     * Returns null if layer undefined or disabled.
+     */
+    this.getLayerPriority = function(layerName) {
+        if (!enabledLayers[layerName]) {
+            return null;
+        }
+        return layerMap[layerName].priority;
+    };
+
+    this.getOrderedLayerNames = function() {
         return layerOrder;
     };
 
@@ -7047,8 +7155,9 @@ SceneJS._memoryModule = new (function() {
     // @private
     function outOfMemory(description) {
         SceneJS._loggingModule.error("Memory allocation failed");
-        throw SceneJS._errorModule.fatalError(new SceneJS.errors.OutOfVRAMException(
-                "Out of memory - failed to allocate memory for " + description));
+        throw SceneJS._errorModule.fatalError(
+                SceneJS.errors.OUT_OF_VRAM,
+                "Out of memory - failed to allocate memory for " + description);
     }
 
     /**
@@ -7106,12 +7215,14 @@ SceneJS._memoryModule = new (function() {
  *  @private
  */
 SceneJS._instancingModule = new function() {
+    var idStack = [];
     var countInstances = 0;
     var instances = {}; // Maps ID of each current node instance
 
     SceneJS._eventModule.addListener(
             SceneJS._eventModule.RESET,
             function() {
+                idStack = [];
                 countInstances = 0;
                 instances = {};
             });
@@ -7119,29 +7230,36 @@ SceneJS._instancingModule = new function() {
     SceneJS._eventModule.addListener(
             SceneJS._eventModule.SCENE_COMPILING,
             function() {
+                idStack = [];
                 countInstances = 0;
                 instances = {};
             });
 
     /** Acquire instance of a node
      */
-    this.acquireInstance = function(nodeID) {
+    this.acquireInstance = function(id, nodeID) {
         if (instances[nodeID]) {
             SceneJS._errorModule.error(
-                    new SceneJS.errors.CyclicInstanceException(
-                            "SceneJS.Instance attempted to create cyclic instantiation: " + nodeID));
+                    SceneJS.errors.INSTANCE_CYCLE,
+                    "SceneJS.Instance attempted to create cyclic instantiation: " + nodeID);
             return null;
         }
         var node = SceneJS._nodeIDMap[nodeID];
         if (!node) {
             var nodeStore = SceneJS.Services.getService(SceneJS.Services.NODE_LOADER_SERVICE_ID);
             if (nodeStore) {
-                node = nodeStore.loadNode(nodeID);                
+                node = nodeStore.loadNode(nodeID);
             }
         }
         if (node) {
             instances[nodeID] = nodeID;
+            idStack.push(id);
             countInstances++;
+
+            /* We set the instance node's ID on the render module, so that it may
+             * internally form state IDs prefixed by the instance
+             */
+            SceneJS._renderModule.setIDPrefix(idStack.join(""));
         }
         return node;
     };
@@ -7160,7 +7278,9 @@ SceneJS._instancingModule = new function() {
      */
     this.releaseInstance = function(nodeID) {
         instances[nodeID] = undefined;
+        idStack.pop();
         countInstances--;
+        SceneJS._renderModule.setIDPrefix((countInstances > 0) ? idStack[countInstances - 1] : null);
     };
 }();
 /**
@@ -7370,12 +7490,12 @@ SceneJS.Instance.prototype.setTarget = function(target) {
 };
 
 
-// @private
-SceneJS.Instance.prototype._compile = function(traversalContext) {
-    this._preCompile(traversalContext);
-    this._compileNodes(traversalContext);
-    this._postCompile(traversalContext);
-};
+//// @private
+//SceneJS.Instance.prototype._compile = function(traversalContext) {
+//    this._preCompile(traversalContext);
+//    this._compileNodes(traversalContext);
+//    this._postCompile(traversalContext);
+//};
 
 //(function() {
 //
@@ -7454,57 +7574,67 @@ SceneJS.Instance.prototype._compile = function(traversalContext) {
 //
 //})();
 
-    // @private
-    SceneJS.Instance.prototype._compile = function(traversalContext) {
-        if (this._attr.target) {
-            var nodeId = this._attr.target; // Make safe to set #uri while instantiating
+// @private
+SceneJS.Instance.prototype._compile = function(traversalContext) {
+    if (this._attr.target) {
+        var nodeId = this._attr.target; // Make safe to set #uri while instantiating
 
-            this._symbol = SceneJS._instancingModule.acquireInstance(nodeId);
+        this._symbol = SceneJS._instancingModule.acquireInstance(this._attr.id, nodeId);
 
-            if (!this._symbol) {
+        if (!this._symbol) {
 
-                /* Couldn't find target
-                 */
-                var exception;
-                if (this._attr.mustExist) {
-                    throw SceneJS._errorModule.fatalError(
-                            exception = new SceneJS.errors.SymbolNotFoundException
-                                    ("SceneJS.Instance could not find target node: '" + this._attr.target + "'"));
-                }
-                this._changeState(SceneJS.Instance.STATE_ERROR, exception);
-
-                /**
-                 * If we're going to keep trying to find the
-                 * target, then we'll need the scene graph to
-                 * keep rendering so that this instance can
-                 * keep trying. Otherwise, we'll wait for the next
-                 * render.
-                 */
-                if (this._attr.retry) {
-
-                    SceneJS._compileModule.nodeUpdated(this, "searching");
-
-                    /* Record this node as still loading, for "loading-status"
-                     * events to include in their reported stats
-                     */
-                    SceneJS._loadStatusModule.status.numNodesLoading++;
-                }
-
-            } else {
-
-                /* Record this node as loaded
-                 */
-                SceneJS._loadStatusModule.status.numNodesLoaded++;
-
-                this._changeState(SceneJS.Instance.STATE_CONNECTED);
-                this._symbol._compileWithEvents(this._createTargetTraversalContext(traversalContext, this._symbol));
-                SceneJS._instancingModule.releaseInstance(nodeId);
-                this._changeState(SceneJS.Instance.STATE_SEARCHING);
-                this._symbol = null;
+            /* Couldn't find target
+             */
+            var exception;
+            if (this._attr.mustExist) {
+                throw SceneJS._errorModule.fatalError(
+                        exception = SceneJS.errors.INSTANCE_TARGET_NOT_FOUND,
+                                "SceneJS.Instance could not find target node: '" + this._attr.target + "'");
             }
-        }
-    };
+            this._changeState(SceneJS.Instance.STATE_ERROR, exception);
 
+            /**
+             * If we're going to keep trying to find the
+             * target, then we'll need the scene graph to
+             * keep rendering so that this instance can
+             * keep trying. Otherwise, we'll wait for the next
+             * render.
+             */
+            if (this._attr.retry) {
+
+                SceneJS._compileModule.nodeUpdated(this, "searching");
+
+                /* Record this node as still loading, for "loading-status"
+                 * events to include in their reported stats
+                 */
+                SceneJS._loadStatusModule.status.numNodesLoading++;
+            }
+
+        } else {
+
+            /* Record this node as loaded
+             */
+            SceneJS._loadStatusModule.status.numNodesLoaded++;
+
+            this._changeState(SceneJS.Instance.STATE_CONNECTED);
+
+            if (SceneJS._compileModule.preVisitNode(this._symbol)) {
+                SceneJS._flagsModule.preVisitNode(this._symbol);
+
+                this._symbol._compileWithEvents(this._createTargetTraversalContext(traversalContext, this._symbol));
+
+                SceneJS._flagsModule.postVisitNode(this._symbol);
+            }
+            SceneJS._compileModule.postVisitNode(this._symbol);
+            
+            SceneJS._renderModule.marshallStates();
+
+            SceneJS._instancingModule.releaseInstance(nodeId);
+            this._changeState(SceneJS.Instance.STATE_SEARCHING);
+            this._symbol = null;
+        }
+    }
+};
 
 
 // @private
@@ -7843,7 +7973,7 @@ SceneJS._processModule = new (function() {
      */
     this.createProcess = function(cfg) {
         if (!activeSceneId) {
-            throw SceneJS._errorModule.fatalError(new SceneJS.errors.NoSceneActiveException("No scene active - can't create process"));
+            throw "No scene active - can't create process";
         }
         var group = groups[activeSceneId];
         var i = 0;
@@ -7961,27 +8091,12 @@ SceneJS._sceneModule = new (function() {
     var nScenes = 0;
     var activeSceneId;
 
-    var projMat;
-    var viewMat;
-
     SceneJS._eventModule.addListener(
             SceneJS._eventModule.RESET,
             function() {
                 scenes = {};
                 nScenes = 0;
                 activeSceneId = null;
-            });
-
-    SceneJS._eventModule.addListener(
-            SceneJS._eventModule.PROJECTION_TRANSFORM_UPDATED,
-            function(params) {
-                projMat = params.matrix;
-            });
-
-    SceneJS._eventModule.addListener(
-            SceneJS._eventModule.VIEW_TRANSFORM_UPDATED,
-            function(params) {
-                viewMat = params.matrix;
             });
 
     /** Locates element in DOM to write logging to
@@ -8029,26 +8144,31 @@ SceneJS._sceneModule = new (function() {
             canvasId = SceneJS.Scene.DEFAULT_CANVAS_ID;
             canvas = document.getElementById(canvasId);
             if (!canvas) {
-                throw SceneJS._errorModule.fatalError(new SceneJS.errors.CanvasNotFoundException
-                        ("SceneJS.Scene failed to find default canvas with ID '"
-                                + SceneJS.Scene.DEFAULT_CANVAS_ID + "'"));
+                throw SceneJS._errorModule.fatalError(
+                        SceneJS.errors.CANVAS_NOT_FOUND,
+                        "SceneJS.Scene failed to find default canvas with ID '"
+                                + SceneJS.Scene.DEFAULT_CANVAS_ID + "'");
             }
         } else {
             canvas = document.getElementById(canvasId);
-            if (canvas) {
-                SceneJS._loggingModule.info("SceneJS.Scene binding to canvas '" + canvasId + "'");
-            } else {
-                SceneJS._loggingModule.info("SceneJS.Scene config 'canvasId' unresolved - looking for default canvas with " +
+            if (!canvas) {
+                SceneJS._loggingModule.warn("SceneJS.Scene config 'canvasId' unresolved - looking for default canvas with " +
                                             "ID '" + SceneJS.Scene.DEFAULT_CANVAS_ID + "'");
                 canvasId = SceneJS.Scene.DEFAULT_CANVAS_ID;
                 canvas = document.getElementById(canvasId);
                 if (!canvas) {
-                    throw SceneJS._errorModule.fatalError(new SceneJS.errors.CanvasNotFoundException
-                            ("SceneJS.Scene config 'canvasId' does not match any elements in the page and no " +
-                             "default canvas found with ID '" + SceneJS.Scene.DEFAULT_CANVAS_ID + "'"));
+                    throw SceneJS._errorModule.fatalError(SceneJS.errors.CANVAS_NOT_FOUND,
+                            "SceneJS.Scene config 'canvasId' does not match any elements in the page and no " +
+                             "default canvas found with ID '" + SceneJS.Scene.DEFAULT_CANVAS_ID + "'");
                 }
             }
         }
+
+        // If the canvas uses css styles to specify the sizes make sure the basic
+        // width and height attributes match or the WebGL context will use 300 x 150
+        canvas.width = canvas.clientWidth;
+        canvas.height = canvas.clientHeight;
+
         var context;
         var contextNames = SceneJS.SUPPORTED_WEBGL_CONTEXT_NAMES;
         for (var i = 0; (!context) && i < contextNames.length; i++) {
@@ -8078,10 +8198,11 @@ SceneJS._sceneModule = new (function() {
             }
         }
         if (!context) {
-            throw SceneJS._errorModule.fatalError(new SceneJS.errors.WebGLNotSupportedException
-                    ('Canvas document element with ID \''
+            throw SceneJS._errorModule.fatalError(
+                    SceneJS.errors.WEBGL_NOT_SUPPORTED,
+                    'Canvas document element with ID \''
                             + canvasId
-                            + '\' failed to provide a supported WebGL context'));
+                            + '\' failed to provide a supported WebGL context');
         }
         context.clearColor(0.0, 0.0, 0.0, 1.0);
         context.clearDepth(1.0);
@@ -8144,7 +8265,7 @@ SceneJS._sceneModule = new (function() {
     this.activateScene = function(sceneId) {
         var scene = scenes[sceneId];
         if (!scene) {
-            throw SceneJS._errorModule.fatalError("Scene not defined: '" + sceneId + "'");
+            throw SceneJS._errorModule.fatalError(SceneJS.errors.NODE_NOT_FOUND, "Scene not defined: '" + sceneId + "'");
         }
         activeSceneId = sceneId;
         SceneJS._eventModule.fireEvent(SceneJS._eventModule.LOGGING_ELEMENT_ACTIVATED, { loggingElement: scene.loggingElement });
@@ -8160,7 +8281,7 @@ SceneJS._sceneModule = new (function() {
     this.redrawScene = function(sceneId) {
         var scene = scenes[sceneId];
         if (!scene) {
-            throw SceneJS._errorModule.fatalError("Scene not defined: '" + sceneId + "'");
+            throw SceneJS._errorModule.fatalError(SceneJS.errors.NODE_NOT_FOUND, "Scene not defined: '" + sceneId + "'");
         }
         SceneJS._eventModule.fireEvent(SceneJS._eventModule.CANVAS_ACTIVATED, scene.canvas);
         SceneJS._renderModule.redraw();
@@ -8173,7 +8294,7 @@ SceneJS._sceneModule = new (function() {
     this.getSceneCanvas = function(sceneId) {
         var scene = scenes[sceneId];
         if (!scene) {
-            throw SceneJS._errorModule.fatalError("Scene not defined: '" + sceneId + "'");
+            throw SceneJS._errorModule.fatalError(SceneJS.errors.NODE_NOT_FOUND, "Scene not defined: '" + sceneId + "'");
         }
         return scene.canvas.canvas;
     };
@@ -8204,13 +8325,13 @@ SceneJS._sceneModule = new (function() {
      */
     this.deactivateScene = function() {
         if (!activeSceneId) {
-            throw SceneJS._errorModule.fatalError("Internal error: no scene active");
+            throw "Internal error: no scene active";
         }
         var sceneId = activeSceneId;
         activeSceneId = null;
         var scene = scenes[sceneId];
         if (!scene) {
-            throw SceneJS._errorModule.fatalError("Scene not defined: '" + sceneId + "'");
+            throw SceneJS._errorModule.fatalError(SceneJS.errors.NODE_NOT_FOUND, "Scene not defined: '" + sceneId + "'");
         }
         SceneJS._eventModule.fireEvent(SceneJS._eventModule.CANVAS_DEACTIVATED, scene.canvas);
         SceneJS._eventModule.fireEvent(SceneJS._eventModule.SCENE_COMPILED, {sceneId : sceneId });
@@ -8471,8 +8592,9 @@ SceneJS.Scene.prototype.getLayers = function() {
  */
 SceneJS.Scene.prototype.start = function(cfg) {
     if (this._destroyed) {
-        throw new SceneJS.errors.InvalidSceneGraphException
-                ("Attempted start on Scene that has been destroyed");
+        throw SceneJS._errorModule.fatalError(
+                SceneJS.errors.NODE_ILLEGAL_STATE,
+                "Attempted start on Scene that has been destroyed");
     }
 
     /*
@@ -8493,24 +8615,33 @@ SceneJS.Scene.prototype.start = function(cfg) {
 
         /* Render loop
          */
+        var sleeping = false;
+
+        SceneJS._compileModule.nodeUpdated(this, "start");
+
         window[fnName] = function() {
-            if (cfg.idleFunc) {
-                cfg.idleFunc();
-            }
+
             if (self._running) { // idleFunc may have stopped render loop
 
-                if (SceneJS._compileModule._needNewCompile) {
+                if (cfg.idleFunc) {
+                    cfg.idleFunc();
+                }
+
+                if (SceneJS._compileModule.triggerCompile) {
 
                     self._compileWithEvents();
+
+                    sleeping = false;
+
+                } else {
+                    if (!sleeping && cfg.sleepFunc) {
+                        cfg.sleepFunc();
+                    }
+                    sleeping = true;
                 }
-                //                if (SceneJS._picking) {
-                //                    alert("pick");
-                //                SceneJS._renderModule.pick(SceneJS._picking);
-                //                    SceneJS._picking = null;
-                //                }
             }
         };
-        this._pInterval = setInterval("window['" + fnName + "']()", 1000.0 / (cfg.fps || 100));
+        this._pInterval = setInterval("window['" + fnName + "']()", 1000.0 / (cfg.fps || 60));
     }
 };
 
@@ -8527,8 +8658,9 @@ SceneJS.Scene.prototype.isRunning = function() {
  */
 SceneJS.Scene.prototype.render = function() {
     if (this._destroyed) {
-        throw new SceneJS.errors.InvalidSceneGraphException
-                ("Attempted render on Scene that has been destroyed");
+        throw SceneJS._errorModule.fatalError(
+                SceneJS.errors.NODE_ILLEGAL_STATE,
+                "Attempted render on Scene that has been destroyed");
     }
 
     /*
@@ -8548,62 +8680,47 @@ SceneJS.Scene.prototype.render = function() {
 
 
 /**
- * Picks whatever {@link SceneJS.Geometry} will be rendered at the given canvas coordinates. When this is called within
- * the idle function of a currently running render loop (ie. started with {@link #start) then pick will be performed on
- * the next render. When called on a non-running scene, the pick is performed immediately.
+ * Picks whatever {@link SceneJS.Geometry} will be rendered at the given canvas coordinates.
+ *
  * When a node is picked (hit), then all nodes on the traversal path to that node that have "picked" listeners will
  * receive a "picked" event as they are rendered (see examples and wiki for more info).
+ *
+ * You can attach "notpicked" listeners to the {@link SceneJS.Scene} node to catch when
+ * nothing is picked.
  *
  * @param canvasX Canvas X-coordinate
  * @param canvasY Canvas Y-coordinate
  */
 SceneJS.Scene.prototype.pick = function(canvasX, canvasY, options) {
     if (this._destroyed) {
-        throw new SceneJS.errors.InvalidSceneGraphException
-                ("Attempted pick on Scene that has been destroyed");
+        throw SceneJS._errorModule.fatalError(
+                SceneJS.errors.NODE_ILLEGAL_STATE,
+                "Attempted pick on Scene that has been destroyed");
     }
     if (!this._sceneId) {
-        throw new SceneJS.errors.InvalidSceneGraphException
-                ("Attempted pick on Scene that has not yet rendered");
+        throw SceneJS._errorModule.fatalError(
+                SceneJS.errors.NODE_ILLEGAL_STATE,
+                "Attempted pick on Scene that has not been rendered");
     }
 
-    //    SceneJS._picking = {
-    //        sceneId: this._sceneId,
-    //        canvasX : canvasX,
-    //        canvasY : canvasY
-    //    };
-
-    SceneJS._renderModule.pick({
+    if (!SceneJS._renderModule.pick({
         sceneId: this._sceneId,
         canvasX : canvasX,
-        canvasY : canvasY }, options );
+        canvasY : canvasY }, options)) {
+
+        this._fireEvent("notpicked", { }, options);
+    }
 };
 
 SceneJS.Scene.prototype._compile = function() {
-
     SceneJS._actionNodeDestroys();
     SceneJS._sceneModule.activateScene(this._sceneId);
-
-    var iterative = false;
-
-    if (iterative) {
-        this._compileBranch(this, true);
-
-    } else {
-        if (SceneJS._compileModule.preVisitNode(this)) {
-            SceneJS._layerModule.setActiveLayers(this._layers);  // Activate selected layers - all layers active when undefined
-            var traversalContext = {};
-
-            this._compileNodes(traversalContext);
-
-
-            //        SceneJS._compileModule.withSubTreesToCompile(function(node) {
-            //            node._compile(traversalContext);
-            //        });
-        }
-        SceneJS._compileModule.postVisitNode(this);
+    if (SceneJS._compileModule.preVisitNode(this)) {
+        SceneJS._layerModule.setActiveLayers(this._layers);  // Activate selected layers - all layers active when undefined
+        var traversalContext = {};
+        this._compileNodes(traversalContext);
     }
-
+    SceneJS._compileModule.postVisitNode(this);
     SceneJS._sceneModule.deactivateScene();
     SceneJS._actionNodeDestroys();
 };
@@ -8637,8 +8754,6 @@ SceneJS.Scene.prototype._compile = function() {
                  *--------------------------------------------------------------*/
 
                 SceneJS._pickingModule.preVisitNode(p.node);
-
-                var nodeFlagsProcessed = false;
 
                 if (SceneJS._compileModule.preVisitNode(p.node)) {
 
@@ -8692,19 +8807,6 @@ SceneJS.Scene.prototype._compile = function() {
                             }
                         }
                     }
-
-                    nodeFlagsProcessed = true;
-                }
-
-                /* If compile module prevented descent into any child then we are performing a partial
-                 * re-compilation in which we are updating some existing states held by the renderer module.
-                 * During full compilations, we rely on geometry nodes to cause the renderer module to
-                 * gather dirty states accumulated by traversed nodes, however in this case we may not be
-                 * visiting those geometries, so we'll trigger that explicitly.
-                 */
-
-                if (nodeFlagsProcessed) {
-                    SceneJS._renderModule.marshallStates();
                 }
 
             } else {                        // Node was preCompiled
@@ -8789,6 +8891,690 @@ SceneJS.reset = function() {
 };
 
 /**
+ * State node renderer
+ */
+var SceneJS_NodeRenderer = function(cfg) {
+
+    this._canvas = cfg.canvas;
+    this._context = cfg.context;
+
+    this._pickListeners = new Array(100000);
+
+    /** Facade to support node state queries while node rendering
+     */
+
+    var self = this;
+
+    this._queryFacade = {
+
+        _node: null,
+
+        _setNode: function(node) {
+            this._node = node;
+            this._mem = {};
+        },
+
+        getCameraMatrix : function() {
+            return this._mem.camMat ? this._mem.camMat : this._mem.camMat = this._node.projXFormState.mat.slice(0);
+        },
+
+        getViewMatrix : function() {
+            return this._mem.viewMat ? this._mem.viewMat : this._mem.viewMat = this._node.viewXFormState.mat.slice(0);
+        },
+
+        getModelMatrix : function() {
+            return this._mem.modelMat ? this._mem.modelMat : this._mem.modelMat = this._node.modelXFormState.mat.slice(0);
+        },
+
+        getCanvasPos : function(offset) {
+
+            if (this._mem.canvasPos && (!offset)) {
+                return this._mem.canvasPos;
+            }
+
+            this.getProjPos(offset);
+
+            if (!this._mem.canvasWidth) {
+                this._mem.canvasWidth = self._canvas.width;
+                this._mem.canvasHeight = self._canvas.height;
+            }
+
+            /* Projection division and map to canvas
+             */
+            var pc = this._mem.pc;
+
+            var x = (pc[0] / pc[3]) * this._mem.canvasWidth * 0.5;
+            var y = (pc[1] / pc[3]) * this._mem.canvasHeight * 0.5;
+
+            return this._mem.canvasPos = {
+                x: x + (self._canvas.width * 0.5),
+                y: this._mem.canvasHeight - y - (this._mem.canvasHeight * 0.5)
+            };
+        },
+
+        getCameraPos : function(offset) {
+            if (!this._mem.camPos || offset) {
+                this.getProjPos(offset);
+                this._mem.camPos = SceneJS._math_normalizeVec3(this._mem.pc, [0,0,0]);
+            }
+            return { x: this._mem.camPos[0], y: this._mem.camPos[1], z: this._mem.camPos[2] };
+        },
+
+        getProjPos : function(offset) {
+            if (!this._mem.pc || offset) {
+                this.getViewPos(offset);
+                this._mem.pc = SceneJS._math_transformPoint3(this._node.projXFormState.mat, this._mem.vc);
+            }
+            return { x: this._mem.pc[0], y: this._mem.pc[1], z: this._mem.pc[2],  w: this._mem.pc[3] };
+        },
+
+        getViewPos : function(offset) {
+            if (!this._mem.vc || offset) {
+                this.getWorldPos(offset);
+                this._mem.vc = SceneJS._math_transformPoint3(this._node.viewXFormState.mat, this._mem.wc);
+            }
+            return { x: this._mem.vc[0], y: this._mem.vc[1], z: this._mem.vc[2],  w: this._mem.vc[3] };
+        },
+
+        getWorldPos : function(offset) {
+            if (!this._mem.wc || offset) {
+                this._mem.wc = SceneJS._math_transformPoint3(this._node.modelXFormState.mat, offset || [0,0,0]);
+            }
+            return { x: this._mem.wc[0], y: this._mem.wc[1], z: this._mem.wc[2],  w: this._mem.wc[3] };
+        }
+    };
+
+
+    /**
+     * Called before we render all state nodes for a frame.
+     * Forgets any program that was used for the last node rendered, which causes it
+     * to forget all states for that node.
+     */
+    this.init = function(picking) {
+        this._picking = picking;
+        this._program = null;
+        this._lastRendererState = null;
+        this._lastImageBufState = null;
+        this._pickIndex = 0;
+    };
+
+    /**
+     * Renders a state node. Makes state changes only where the node's states have different IDs
+     * than the states of the last node. If the node has a different program than the last node
+     * rendered, Renderer forgets all states for the previous node and makes a fresh set of transitions
+     * into all states for this node.
+     */
+    this.renderNode = function(node) {
+
+        /* Prepare query facade
+         */
+        this._queryFacade._setNode(node);
+
+        /* Only pick nodes that are enabled for picking
+         */
+        if (this._picking && node.flagsState.flags.picking === false) {
+            return;
+        }
+
+        /* Bind program if none bound, or if node uses different program
+         * to that currently bound.
+         *
+         * Also flag all buffers as needing to be bound.
+         */
+        if ((!this._program) || (node.program.id != this._lastProgramId)) {
+            //                if (this._program) {
+            //                    this._program.unbind();
+            //                }
+
+            this._program = this._picking ? node.program.pick : node.program.render;
+            this._program.bind();
+
+            this._lastGeoStateId = -1;
+            this._lastFlagsStateId = -1;
+            this._lastColortransStateId = -1;
+            this._lastLightStateId = -1;
+            this._lastClipStateId = -1;
+            this._lastDeformStateId = -1;
+            this._lastMorphStateId = -1;
+            this._lastTexStateId = -1;
+            this._lastMaterialStateId = -1;
+            this._lastViewXFormStateId = -1;
+            this._lastModelXFormStateId = -1;
+            this._lastProjXFormStateId = -1;
+            this._lastPickStateId = -1;
+            this._lastImageBufStateId = -1;
+            this._lastFogStateId = -1;
+            this._lastPickListenersStateId = -1;
+            this._lastRenderListenersStateId = -1;
+
+            this._lastProgramId = node.program.id;
+        }
+
+        var program = this._program;
+        var gl = this._context;
+
+        /*----------------------------------------------------------------------------------------------------------
+         * flags
+         *--------------------------------------------------------------------------------------------------------*/
+
+        if (! this._lastFlagsState || node.flagsState._stateId != this._lastFlagsState._stateId) {
+
+            /*
+             */
+            var newFlags = node.flagsState.flags;
+            var oldFlags = this._lastFlagsState ? this._lastFlagsState.flags : null;
+
+            if (!oldFlags || newFlags.backfaces != oldFlags.backfaces) {
+                if (newFlags.backfaces) {
+                    gl.disable(gl.CULL_FACE);
+                } else {
+                    gl.enable(gl.CULL_FACE);
+                }
+            }
+
+            if (!oldFlags || newFlags.blendFunc != oldFlags.blendFunc) {
+                if (newFlags.blendFunc) {
+                    gl.blendFunc(glEnum(gl, newFlags.blendFunc.sfactor || "one"), glEnum(gl, newFlags.blendFunc.dfactor || "zero"));
+                } else {
+                    gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA); // Not redundant, because of inequality test above
+                }
+            }
+
+            this._lastFlagsState = node.flagsState;
+        }
+
+        /*----------------------------------------------------------------------------------------------------------
+         * imagebuf
+         *--------------------------------------------------------------------------------------------------------*/
+
+        if (! this._lastImageBufState || node.imageBufState._stateId != this._lastImageBufState._stateId) {
+            if (this._lastImageBufState && this._lastImageBufState.imageBuf) {
+                gl.finish();
+                this._lastImageBufState.imageBuf.unbind();
+            }
+            if (node.imageBufState.imageBuf) {
+                node.imageBufState.imageBuf.bind();
+            }
+            this._lastImageBufState = node.imageBufState;
+        }
+
+        /*----------------------------------------------------------------------------------------------------------
+         * geometry or morphGeometry
+         *
+         * 1. Disable VBOs
+         * 2. If new morphGeometry then bind target VBOs and remember which arrays we bound
+         * 3. If new geometry then bind VBOs for whatever is not already bound
+         *--------------------------------------------------------------------------------------------------------*/
+
+        if ((node.geoState._stateId != this._lastGeoStateId)  // New geometry
+                || (node.morphState.morph && node.morphState._stateId != this._lastMorphStateId)) {   // New morphGeometry
+
+            /* Disable all vertex arrays
+             */
+            for (var k = 0; k < 8; k++) {
+                gl.disableVertexAttribArray(k);
+            }
+
+            var vertexBufBound = false;
+            var normalBufBound = false;
+            var uvBufBound = false;
+            var uvBuf2Bound = false;
+
+            var morph;
+            var target1, target2;
+
+            var geo = node.geoState.geo;
+
+            if (node.morphState.morph && node.morphState._stateId != this._lastMorphStateId) {
+
+                /* Bind morph VBOs
+                 */
+
+                morph = node.morphState.morph;
+
+                target1 = morph.target1;
+                target2 = morph.target2;
+
+                if (target1.vertexBuf) {
+                    program.bindFloatArrayBuffer("aVertex", target1.vertexBuf);
+                    program.bindFloatArrayBuffer("aMorphVertex", target2.vertexBuf);
+                    vertexBufBound = true;
+                }
+
+                if (target1.normalBuf) {
+                    program.bindFloatArrayBuffer("aNormal", target1.normalBuf);
+                    program.bindFloatArrayBuffer("aMorphNormal", target2.normalBuf);
+                    normalBufBound = true;
+                }
+
+                if (target1.uvBuf) {
+                    program.bindFloatArrayBuffer("aUVCoord", target1.uvBuf);
+                    program.bindFloatArrayBuffer("aMorphUVCoord", target2.uvBuf);
+                    uvBufBound = true;
+                }
+
+                if (target1.uvBuf2) {
+                    program.bindFloatArrayBuffer("aUVCoord2", target1.uvBuf);
+                    program.bindFloatArrayBuffer("aMorphUVCoord2", target2.uvBuf);
+                    uvBuf2Bound = true;
+                }
+
+                program.setUniform("uMorphFactor", morph.factor);
+                this._lastMorphStateId = node.morphState._stateId;
+            }
+
+            /* Bind geometry VBOs - do that in any case, since we'll always have a geometry
+             * within a morphGeometry
+             */
+
+            this._lastGeoStateId = node.geoState._stateId;
+
+            if (!vertexBufBound && geo.vertexBuf) {
+                program.bindFloatArrayBuffer("aVertex", geo.vertexBuf);
+            }
+
+            if (!normalBufBound && geo.normalBuf) {
+                program.bindFloatArrayBuffer("aNormal", geo.normalBuf);
+            }
+            // TODO
+            if (node.texState && node.texState.layers.length > 0) {
+                if (geo.uvBuf) {
+                    program.bindFloatArrayBuffer("aUVCoord", geo.uvBuf);
+                }
+                if (geo.uvBuf2) {
+                    program.bindFloatArrayBuffer("aUVCoord2", geo.uvBuf2);
+                }
+            }
+
+            if (geo.colorBuf) {
+                program.bindFloatArrayBuffer("aVertexColor", geo.colorBuf);
+            }
+
+            geo.indexBuf.bind();
+        }
+
+        /* Set GL props
+         */
+        if (node.rendererState) {
+            if (!this._lastRendererState || node.rendererState._stateId != this._lastRendererState._stateId) {
+                if (this._lastRendererState && this._lastRendererState.props) {
+                    this._lastRendererState.props.restoreProps(gl);
+                }
+                if (node.rendererState.props) {
+                    node.rendererState.props.setProps(gl);
+                }
+                this._lastRendererState = node.rendererState;
+            }
+
+            /* Bind renderer properties
+             */
+            var clearColor;
+            if (node.rendererState.props) {
+                clearColor = node.rendererState.props.props.clearColor;
+            }
+            program.setUniform("uAmbient", clearColor ? [clearColor.r, clearColor.g, clearColor.b] : [0, 0, 0]);
+        }
+
+        /*----------------------------------------------------------------------------------------------------------
+         * texture
+         *--------------------------------------------------------------------------------------------------------*/
+
+        if (node.texState._stateId != this._lastTexStateId) {
+            var layer;
+            for (var j = 0, len = node.texState.layers.length; j < len; j++) {
+                layer = node.texState.layers[j];
+                program.bindTexture("uSampler" + j, layer.texture, j);
+                if (layer.matrixAsArray) {
+                    program.setUniform("uLayer" + j + "Matrix", layer.matrixAsArray);
+                }
+            }
+            this._lastTexStateId = node.texState._stateId;
+        }
+
+        /*----------------------------------------------------------------------------------------------------------
+         * view matrix and eye position
+         *--------------------------------------------------------------------------------------------------------*/
+
+        if (node.viewXFormState._stateId != this._lastViewXFormStateId) {
+            program.setUniform("uVMatrix", node.viewXFormState.mat);
+            program.setUniform("uVNMatrix", node.viewXFormState.normalMat);
+            program.setUniform("uEye", node.viewXFormState.lookAt.eye);
+            this._lastViewXFormStateId = node.viewXFormState._stateId;
+        }
+
+        /*----------------------------------------------------------------------------------------------------------
+         * model matrix
+         *--------------------------------------------------------------------------------------------------------*/
+
+        if (node.modelXFormState._stateId != this._lastModelXFormStateId) {
+            program.setUniform("uMMatrix", node.modelXFormState.mat);
+            program.setUniform("uMNMatrix", node.modelXFormState.normalMat);
+            this._lastModelXFormStateId = node.modelXFormState._stateId;
+        }
+
+        /*----------------------------------------------------------------------------------------------------------
+         * projection matrix
+         *--------------------------------------------------------------------------------------------------------*/
+
+        if (node.projXFormState._stateId != this._lastProjXFormStateId) {
+            program.setUniform("uPMatrix", node.projXFormState.mat);
+            this._lastProjXFormStateId = node.projXFormState._stateId;
+        }
+
+        /*----------------------------------------------------------------------------------------------------------
+         * clip planes
+         *--------------------------------------------------------------------------------------------------------*/
+
+        if (node.clipState &&
+            (node.clipState._stateId != this._lastClipStateId ||
+             node.flagsState._stateId != this._lastFlagsStateId)) { // Flags can enable/disable clip
+
+            var clip;
+            for (var k = 0; k < node.clipState.clips.length; k++) {
+                clip = node.clipState.clips[k];
+
+                if (node.flagsState.flags.clipping === false) { // Flags disable/enable clipping
+                    program.setUniform("uClipMode" + k, 0);
+                } else if (clip.mode == "inside") {
+                    program.setUniform("uClipMode" + k, 2);
+                } else if (clip.mode == "outside") {
+                    program.setUniform("uClipMode" + k, 1);
+                } else { // disabled
+                    program.setUniform("uClipMode" + k, 0);
+                }
+
+                program.setUniform("uClipA" + k, clip.worldA);
+                program.setUniform("uClipB" + k, clip.worldB);
+                program.setUniform("uClipC" + k, clip.worldC);
+            }
+            this._lastClipStateId = node.clipState._stateId;
+        }
+
+        /*----------------------------------------------------------------------------------------------------------
+         * deform
+         *--------------------------------------------------------------------------------------------------------*/
+
+        if (node.deformState && node.deformState.deform && node.deformState._stateId != this._lastDeformStateId) {
+            var verts = node.deformState.deform.verts;
+            var vert;
+            for (var k = 0, len = verts.length; k < len; k++) {
+                vert = verts[k];
+                program.setUniform("uDeformVertex" + k, vert.worldPos);
+                program.setUniform("uDeformWeight" + k, vert.weight);
+                if (vert.mode == "linear") {
+                    program.setUniform("uDeformMode" + k, 0.0);
+                } else if (vert.mode == "exp") {
+                    program.setUniform("uDeformMode" + k, 1.0);
+                }
+            }
+            this._lastDeformStateId = node.deformState._stateId;
+        }
+
+
+        if (!this._picking) {
+
+            /*----------------------------------------------------------------------------------------------------------
+             * fog
+             *--------------------------------------------------------------------------------------------------------*/
+
+            if (node.fogState && node.fogState.fog &&
+                (node.fogState._stateId != this._lastFogStateId ||
+                 node.flagsState._stateId != this._lastFlagsStateId)) { // Flags can enable/disable fog
+
+                var fog = node.fogState.fog;
+
+                if (node.flagsState.flags.fog === false || fog.mode == "disabled") {
+
+                    // When fog is disabled, don't bother loading any of its parameters
+                    // because they will be ignored by the shader
+
+                    program.setUniform("uFogMode", 0.0);
+                } else {
+
+                    if (fog.mode == "constant") {
+                        program.setUniform("uFogMode", 4.0);
+                        program.setUniform("uFogColor", fog.color);
+                        program.setUniform("uFogDensity", fog.density);
+
+                    } else {
+
+                        if (fog.mode == "linear") {
+                            program.setUniform("uFogMode", 1.0);
+                        } else if (fog.mode == "exp") {
+                            program.setUniform("uFogMode", 2.0);
+                        } else if (fog.mode == "exp2") {
+                            program.setUniform("uFogMode", 3.0); // mode is "exp2"
+                        }
+                        program.setUniform("uFogColor", fog.color);
+                        program.setUniform("uFogDensity", fog.density);
+                        program.setUniform("uFogStart", fog.start);
+                        program.setUniform("uFogEnd", fog.end);
+                    }
+                }
+                this._lastFogStateId = node.fogState._stateId;
+            }
+
+            /*----------------------------------------------------------------------------------------------------------
+             * colortrans
+             *--------------------------------------------------------------------------------------------------------*/
+
+            if (node.colortransState && node.colortransState.trans
+                    && (node.colortransState._stateId != this._lastColortransStateId ||
+                        node.flagsState._stateId != this._lastFlagsStateId)) { // Flags can enable/disable colortrans
+
+                /* Bind colortrans
+                 */
+                if (node.flagsState.flags.colortrans === false) {
+                    program.setUniform("uColortransMode", 0);  // Disable
+                } else {
+                    var trans = node.colortransState.trans;
+                    var scale = trans.scale;
+                    var add = trans.add;
+                    program.setUniform("uColortransMode", 1);  // Enable
+                    program.setUniform("uColortransScale", [scale.r, scale.g, scale.b, scale.a]);  // Scale
+                    program.setUniform("uColortransAdd", [add.r, add.g, add.b, add.a]);  // Scale
+                    program.setUniform("uColortransSaturation", trans.saturation);  // Saturation
+                    this._lastColortransStateId = node.colortransState._stateId;
+                }
+            }
+
+            /*----------------------------------------------------------------------------------------------------------
+             * material
+             *--------------------------------------------------------------------------------------------------------*/
+
+            if (node.materialState && node.materialState != this._lastMaterialStateId
+                    || node.flagsState._stateId != this._lastFlagsStateId) { // Flags can enable/disable specularity
+
+                /* Bind Material
+                 */
+                var material = node.materialState.material;
+                program.setUniform("uMaterialBaseColor", material.baseColor);
+                program.setUniform("uMaterialSpecularColor", material.specularColor);
+                program.setUniform("uMaterialSpecular", node.flagsState.flags.specular != false ? material.specular : 0.0);
+                program.setUniform("uMaterialShine", material.shine);
+                program.setUniform("uMaterialEmit", material.emit);
+                program.setUniform("uMaterialAlpha", material.alpha);
+
+                this._lastMaterialStateId = node.materialState._stateId;
+
+                /* If highlighting then override material's baseColor. We'll also force a
+                 * material state change for the next node, otherwise otherwise the highlight
+                 * may linger in the shader uniform if there is no material state change for the next node.
+                 */
+                if (node.flagsState && node.flagsState.flags.highlight) {
+                    program.setUniform("uMaterialBaseColor", material.highlightBaseColor);
+                    this._lastMaterialStateId = null;
+                }
+            }
+
+            /*----------------------------------------------------------------------------------------------------------
+             * lights
+             *--------------------------------------------------------------------------------------------------------*/
+
+            if (node.lightState && node.lightState._stateId != this._lastLightStateId) {
+                var ambient;
+                var light;
+                for (var k = 0; k < node.lightState.lights.length; k++) {
+                    light = node.lightState.lights[k];
+                    program.setUniform("uLightColor" + k, light.color);
+                    program.setUniform("uLightDiffuse" + k, light.diffuse);
+                    if (light.mode == "dir") {
+                        program.setUniform("uLightDir" + k, light.worldDir);
+                    } else if (light.mode == "ambient") {
+                        ambient = ambient ? [
+                            ambient[0] + light.color[0],
+                            ambient[1] + light.color[1],
+                            ambient[2] + light.color[2]
+                        ] : light.color;
+                    } else {
+                        if (light.mode == "point") {
+                            program.setUniform("uLightPos" + k, light.worldPos);
+                        }
+                        if (light.mode == "spot") {
+                            program.setUniform("uLightPos" + k, light.worldPos);
+                            program.setUniform("uLightDir" + k, light.worldDir);
+                            program.setUniform("uLightSpotCosCutOff" + k, light.spotCosCutOff);
+                            program.setUniform("uLightSpotExp" + k, light.spotExponent);
+                        }
+                        program.setUniform("uLightAttenuation" + k,
+                                [
+                                    light.constantAttenuation,
+                                    light.linearAttenuation,
+                                    light.quadraticAttenuation
+                                ]);
+                    }
+                }
+                this._lastLightStateId = node.lightState._stateId;
+            }
+        }
+
+        /*----------------------------------------------------------------------------------------------------------
+         * Pick listeners
+         *--------------------------------------------------------------------------------------------------------*/
+
+        if (this._picking) {
+
+            if (! this._lastPickListenersState || node.pickListenersState._stateId != this._lastPickListenersState._stateId) {
+
+                if (node.pickListenersState.listeners.length > 0) {
+
+                    this._pickListeners[this._pickIndex++] = node.pickListenersState;
+
+                    var b = this._pickIndex >> 16 & 0xFF;
+                    var g = this._pickIndex >> 8 & 0xFF;
+                    var r = this._pickIndex & 0xFF;
+                    g = g / 255;
+                    r = r / 255;
+                    b = b / 255;
+
+                    program.setUniform("uPickColor", [r,g,b]);
+                }
+                this._lastPickListenersState = node.pickListenersState;
+            }
+        }
+
+        if (!this._picking) {    // TODO: do we ever want matrices during a pick pass?
+
+            /*----------------------------------------------------------------------------------------------------------
+             * Render listeners
+             *--------------------------------------------------------------------------------------------------------*/
+
+            if (! this._lastRenderListenersState || node.renderListenersState._stateId != this._lastRenderListenersState._stateId) {
+                if (node.renderListenersState) {
+                    var listeners = node.renderListenersState.listeners;
+                    for (var i = listeners.length - 1; i >= 0; i--) {
+                        listeners[i](this._queryFacade);             // Call listener with query facade object as scope
+                    }
+                    this._lastRenderListenersState = node.renderListenersState;
+                }
+            }
+        }
+
+        /*----------------------------------------------------------------------------------------------------------
+         * Draw the geometry;  When wireframe option is set we'll render
+         * triangle primitives as wireframe
+         * TODO: should we also suppress shading in the renderer? This will currently apply phong shading to the lines.
+         *--------------------------------------------------------------------------------------------------------*/
+
+        var primitive = node.geoState.geo.primitive;
+        if (node.flagsState && node.flagsState.flags.wireframe) {
+            if (primitive == gl.TRIANGLES ||
+                primitive == gl.TRIANGLE_STRIP ||
+                primitive == gl.TRIANGLE_FAN) {
+
+                primitive = gl.LINES;
+            }
+        }
+
+        gl.drawElements(
+                primitive,
+                node.geoState.geo.indexBuf.numItems,
+                gl.UNSIGNED_SHORT,
+                0);
+    };
+
+    var glEnum = function(context, name) {
+        if (!name) {
+            throw SceneJS._errorModule.fatalError(
+                    SceneJS.errors.ILLEGAL_NODE_CONFIG,
+                    "Null SceneJS.renderer node config: \"" + name + "\"");
+        }
+        var result = SceneJS._webgl_enumMap[name];
+        if (!result) {
+            throw SceneJS._errorModule.fatalError(
+                    SceneJS.errors.ILLEGAL_NODE_CONFIG,
+                    "Unrecognised SceneJS.renderer node config value: \"" + name + "\"");
+        }
+        var value = context[result];
+        if (!value) {
+            throw SceneJS._errorModule.fatalError(
+                    SceneJS.errors.WEBGL_UNSUPPORTED_NODE_CONFIG,
+                    "This browser's WebGL does not support renderer node config value: \"" + name + "\"");
+        }
+        return value;
+    };
+
+
+    /**
+     * Called after all nodes rendered for the current frame
+     */
+    this.cleanup = function() {
+
+
+        //            if (node._pickListenersState) {     // Post-call last listeners
+        //
+        //            }
+
+        ///////////////////////////////////////////
+        this._context.finish();
+        ///////////////////////////////////////////
+
+
+        //            if (this._lastRendererState) {
+        //                this._lastRendererState.props.restoreProps(canvas.context);
+        //            }
+        //            if (this._program) {
+        //                this._program.unbind();
+        //            }
+
+        /*----------------------------------------------------------------------------------------------------------
+         * If an image buffer is active, flush and deactivate it
+         *--------------------------------------------------------------------------------------------------------*/
+
+        if (this._lastImageBufState && this._lastImageBufState.imageBuf) {
+            this._lastImageBufState.imageBuf.unbind();
+            this._lastImageBufState = null;
+        }
+
+        if (this._program) {
+            this._program.unbind();
+            this._program = null;
+        }
+        return this._pickListeners;
+    };
+}
+        ;
+/**
  * This module encapsulates the rendering backend behind an event API.
  *
  * It's job is to collect the textures, lights, materials etc. as they are exported during scene
@@ -8800,7 +9586,7 @@ SceneJS._renderModule = new (function() {
     this.MAX_PICK_LISTENERS = 50000;
     this.MAX_NODE_DEPTH = 500;
     this.MAX_SHADERS = 10000;
-    this.DEFAULT_STATE_SORT_DELAY = 5;
+    this.DEFAULT_STATE_SORT_DELAY = 1;
 
     /* Number of frames after each complete display list rebuild at which GL state is re-sorted.
      * To enable sort, is set to a positive number like 5, to prevent continuous re-sort when
@@ -8810,7 +9596,43 @@ SceneJS._renderModule = new (function() {
      *
      * Set to -1 to never sort.
      */
-    this._stateSortDelay = this.DEFAULT_STATE_SORT_DELAY;
+    var stateSortDelay = this.DEFAULT_STATE_SORT_DELAY;
+
+    /*----------------------------------------------------------------------
+     * ID for each state type
+     *--------------------------------------------------------------------*/
+
+    var GEO = 0;
+    var CLIPS = 1;
+    var COLORTRANS = 2;
+    var DEFORM = 3;
+    var FLAGS = 4;
+    var FOG = 5;
+    var IMAGEBUF = 6;
+    var LIGHTS = 7;
+    var MATERIAL = 8;
+    var MORPH = 9;
+    var PICKCOLOR = 10;
+    var TEXTURE = 11;
+    var RENDERER = 12;
+    var MODEL_TRANSFORM = 13;
+    var PROJ_TRANSFORM = 14;
+    var VIEW_TRANSFORM = 15;
+    var PICK_LISTENERS = 16;
+    var RENDER_LISTENERS = 17;
+    var SPRITE_TRANSFORM = 18;
+
+
+    /*----------------------------------------------------------------------
+     * State synch masks - TODO: expand on this
+     *--------------------------------------------------------------------*/
+
+    var STATE_MASKS = [];
+    STATE_MASKS[VIEW_TRANSFORM] = 0x01;
+
+    var DEPENDENTS = [];
+    DEPENDENTS[VIEW_TRANSFORM] = [SPRITE_TRANSFORM];
+    DEPENDENTS[MODEL_TRANSFORM] = [DEFORM, MORPH, LIGHTS, CLIPS];
 
     /*----------------------------------------------------------------------
      * Default state values
@@ -8842,15 +9664,14 @@ SceneJS._renderModule = new (function() {
     };
 
     var DEFAULT_FLAGS = {
-        flags: {
-            fog: true,          // Fog enabled
-            colortrans : true,  // Effect of colortrans enabled
-            picking : true,     // Picking enabled
-            clipping : true,    // User-defined clipping enabled
-            enabled : true,     // Node not culled from traversal
-            visible : true,     // Node visible - when false, everything happens except geometry draw
-            transparent: false
-        }
+        fog: true,              // Fog enabled
+        colortrans : true,      // Effect of colortrans enabled
+        picking : true,         // Picking enabled
+        clipping : true,        // User-defined clipping enabled
+        enabled : true,         // Node not culled from traversal
+        visible : true,         // Node visible - when false, everything happens except geometry draw
+        transparent: false,     // Node transparent - works in conjunction with matarial alpha properties
+        backfaces: true
     };
 
     var DEFAULT_FOG = {
@@ -8939,6 +9760,8 @@ SceneJS._renderModule = new (function() {
     var nodeMap;
     var stateMap;
     var nextStateId;
+
+    var idPrefix;
 
     var nextProgramId = 0;
 
@@ -9038,23 +9861,29 @@ SceneJS._renderModule = new (function() {
     SceneJS._eventModule.addListener(
             SceneJS._eventModule.SCENE_CREATED,
             function(params) {
-                if (!sceneStates[params.sceneId]) {
-                    sceneStates[params.sceneId] = {
+                var sceneId = params.sceneId;
+
+                if (!sceneStates[sceneId]) {
+
+                    sceneStates[sceneId] = {
+                        sceneId: sceneId,
+
                         canvas: params.canvas,
-                        layers: {},
+
+                        nodeRenderer: new SceneJS_NodeRenderer({
+                            canvas: params.canvas.canvas,
+                            context: params.canvas.context
+                        }),
+
+                        boundaries : [],        // Node boundaries packed in one array
+                        boundaryNodes : [],     // Maps boundary index to node ID
+
+                        bin: [],
                         nodeMap: {},
-                        stateMap: {}
+                        stateMap: {},
+                        rendersUntilSort: stateSortDelay
                     };
                 }
-            });
-
-    /* When a canvas is activated we'll get a reference to it, prepare the default state soup,
-     * and an initial empty set of node bins
-     */
-    SceneJS._eventModule.addListener(
-            SceneJS._eventModule.CANVAS_ACTIVATED,
-            function(activatedCanvas) {
-                canvas = activatedCanvas;
             });
 
     SceneJS._eventModule.addListener(
@@ -9077,14 +9906,13 @@ SceneJS._renderModule = new (function() {
      * @param stateSortDelay
      */
     this.setStateSortDelay = function(stateSortDelay) {
-        this._stateSortDelay = typeof stateSortDelay == "number" ? stateSortDelay == undefined : this.DEFAULT_STATE_SORT_DELAY;
+        stateSortDelay = typeof stateSortDelay == "number" ? stateSortDelay == undefined : this.DEFAULT_STATE_SORT_DELAY;
     };
 
     /**
      * Prepares renderer for new scene graph compilation pass
      */
-    this.renderScene = function(params, options) {
-
+    this.bindScene = function(params, options) {
         options = options || {};
 
         /* Activate states for scene
@@ -9094,6 +9922,8 @@ SceneJS._renderModule = new (function() {
         stateMap = states.stateMap;
 
         stateHash = null;
+
+        idPrefix = null;
 
         if (options.compileMode == SceneJS._renderModule.COMPILE_SCENE) {        // Rebuild display list for entire scene
 
@@ -9124,12 +9954,14 @@ SceneJS._renderModule = new (function() {
             rebuildShaders = true;           // Rebuilding shaders - always when rebuilding state graph
 
             nextStateId = 0;                 // Ready to ID new states
+
             //  nextProgramId = 0;           // Ready to ID new programs
 
             nodeMap = states.nodeMap = {};
             stateMap = states.stateMap = {};
 
             setNeedBinSort();
+            // states.needSort = true;
 
         } else if (options.compileMode == SceneJS._renderModule.COMPILE_NODES) {   // Rebuild display list for subtree
 
@@ -9152,11 +9984,13 @@ SceneJS._renderModule = new (function() {
     };
 
     /**
-     * Immediately render a frame of the given scene while performing a pick on it
+     * Immediately render a frame of the given scene while performing a pick on it.
+     * Returns true if something was picked.
+     *
      */
     this.pick = function(params, options) {
         states = sceneStates[params.sceneId];
-        pickFrame(params.canvasX, params.canvasY, options);
+        return pickFrame(params.canvasX, params.canvasY, options);
     };
 
     this.marshallStates = function() {
@@ -9167,44 +10001,63 @@ SceneJS._renderModule = new (function() {
      * State setting/updating
      *----------------------------------------------------------------------------------------------------------------*/
 
-    function getState(id) {
+    /**
+     * Set when pre/post compiling instance nodes, this is prefixed to all IDs
+     * by getState to disambiguate when the ID'd nodes are within instances
+     */
+    this.setIDPrefix = function(id) {
+        idPrefix = id;
+    };
+
+    /** Find or create a new state of the given state type and node ID
+     * @param stateType ID of the type of state, eg. DEFORM, TEXTURE etc
+     * @param id ID of scene graph node that is setting this state
+     */
+    function getState(stateType, id) {
+        if (idPrefix) {
+            id = idPrefix + id;
+        }
         var state;
+        var typeMap = stateMap[stateType];
+        if (!typeMap) {
+            typeMap = stateMap[stateType] = {};
+        }
         if (compileMode != SceneJS._renderModule.COMPILE_SCENE) {
-            state = stateMap[id];
+            state = typeMap[id];
             if (!state) {
                 state = {
-                    _stateId : nextStateId
+                    _stateId : nextStateId,
+                    _stateType: stateType
                 };
-                stateMap[id] = state;
+                typeMap[id] = state;
             }
         } else {
 
             /* Recompiling entire scene graph
              */
             state = {
-                _stateId : nextStateId
+                _stateId : nextStateId,
+                _stateType: stateType
             };
             if (id) {
-                stateMap[id] = state;
+                typeMap[id] = state;
             }
         }
 
         nextStateId++;
 
         if (rebuildBins) {
-            states.layers = {};
+            states.bin = [];
             rebuildBins = false;
         }
         return state;
     }
 
     /**
-     * Set user-defined clipping planes
-     * @param {String} is State ID
-     * @param {Array} clips The clipping planes
+     * Set the current world-space clipping planes
      */
     this.setClips = function(id, clips) {
-        clipState = getState(id || "___DEFAULT_CLIPS");
+        clipState = getState(CLIPS, id || "___DEFAULT_CLIPS");
         clips = clips || [];
         if (clips.length > 0) {
             var hash = [];
@@ -9221,60 +10074,53 @@ SceneJS._renderModule = new (function() {
     };
 
     /**
-     *
+     * Set the current color transform
      */
     this.setColortrans = function(id, trans) {
-        colortransState = getState(id || "___DEFAULT_COLOR_TRANS");
+        colortransState = getState(COLORTRANS, id || "___DEFAULT_COLOR_TRANS");
         colortransState.trans = trans;
         colortransState.hash = trans ? "t" : "f";
         stateHash = null;
     };
 
     /**
-     *
+     * Set the current world-space deformation points
      */
     this.setDeform = function(id, deform) {
-        deformState = getState(id || "___DEFAULT_DEFORM");
+        deformState = getState(DEFORM, id || "___DEFAULT_DEFORM");
         deformState.deform = deform;
         deformState.hash = deform ? "d" + deform.verts.length : "";
         stateHash = null;
     };
 
     /**
-     *
+     * Set the current flags
      */
     this.setFlags = function(id, flags) {
-        flagsState = getState(id || "___DEFAULT_FLAGS");
-        flagsState.flags = flags || {
-            fog: true,          // Fog enabled
-            colortrans : true,  // Effect of colortrans enabled
-            picking : true,     // Picking enabled
-            clipping : true,    // User-defined clipping enabled
-            enabled : true,     // Node not culled from traversal
-            visible : true,     // Node visible - when false, everything happens except geometry draw
-            transparent: false
-        };
-        flagsState.id = id;
+        flagsState = getState(FLAGS, id || "___DEFAULT_FLAGS");
+        flagsState.flags = flags || DEFAULT_FLAGS;
     };
 
     /**
-     *
+     * Set the current fog
      */
     this.setFog = function(id, fog) {
-        fogState = getState(id || "___DEFAULT_FOG");
+        fogState = getState(FOG, id || "___DEFAULT_FOG");
         fogState.fog = fog;
         fogState.hash = fog ? fog.mode : "";
         stateHash = null;
     };
 
     /**
+     * Set the current image buffer
      */
     this.setImagebuf = function(id, imageBuf) {
-        imageBufState = getState(id || "___DEFAULT_IMAGEBUF");
+        imageBufState = getState(IMAGEBUF, id || "___DEFAULT_IMAGEBUF");
         imageBufState.imageBuf = imageBuf;
     };
 
     /**
+     * Set the current world-space light sources
      */
     this.setLights = function(id, lights) { // TODO: what to do with the ID
         lights = lights || [];
@@ -9289,17 +10135,17 @@ SceneJS._renderModule = new (function() {
                 hash.push("d");
             }
         }
-        lightState = getState(id || "___DEFAULT_LIGHTS");
+        lightState = getState(LIGHTS, id || "___DEFAULT_LIGHTS");
         lightState.lights = lights;
         lightState.hash = hash.join("");
         stateHash = null;
     };
 
     /**
-     *
+     * Set the current surface material
      */
     this.setMaterial = function(id, material) {
-        materialState = getState(id || "___DEFAULT_MATERIAL");
+        materialState = getState(MATERIAL, id || "___DEFAULT_MATERIAL");
         material = material || {};
         materialState.material = {
             baseColor : material.baseColor || [ 0.0, 0.0, 0.0 ],
@@ -9314,10 +10160,10 @@ SceneJS._renderModule = new (function() {
     };
 
     /**
-     *
+     * Set model-space morph targets
      */
     this.setMorph = function(id, morph) {
-        morphState = getState(id || "___DEFAULT_MORPH");
+        morphState = getState(MORPH, id || "___DEFAULT_MORPH");
         var hash;
         if (morph) {
             hash = [];
@@ -9339,16 +10185,16 @@ SceneJS._renderModule = new (function() {
      * Pick color is only expected to be set within a pick traversal
      */
     this.setPickColor = function(id, pickColor) {
-        pickState = getState(id || "___DEFAULT_PICK");
+        pickState = getState(PICKCOLOR, id || "___DEFAULT_PICK");
         pickState.pickColor = pickColor;
         stateHash = null;
     };
 
     /**
-     *
+     * Set the current textures
      */
     this.setTexture = function(id, texlayers) {
-        texState = getState(id || "___DEFAULT_TEXTURE");
+        texState = getState(TEXTURE, id || "___DEFAULT_TEXTURE");
 
         texlayers = texlayers || [];
 
@@ -9379,53 +10225,59 @@ SceneJS._renderModule = new (function() {
     };
 
     /**
-     *
+     * Set the current renderer configs
      */
     this.setRenderer = function(id, props) {
-        rendererState = getState(id || "___DEFAULT_RENDERER");
+        rendererState = getState(RENDERER, id || "___DEFAULT_RENDERER");
         rendererState.props = props;
         stateHash = null;
     };
 
     /**
+     * Set the current model matrix and model normal matrix
      */
     this.setModelTransform = function(id, mat, normalMat) {
-        modelXFormState = getState(id || "___DEFAULT_MODEL_TRANSFORM");
+        modelXFormState = getState(MODEL_TRANSFORM, id || "___DEFAULT_MODEL_TRANSFORM");
         modelXFormState.mat = mat || DEFAULT_MAT;
         modelXFormState.normalMat = normalMat || DEFAULT_NORMAL_MAT;
     };
 
     /**
+     * Set the current projection matrix
      */
     this.setProjectionTransform = function(id, mat) {
-        projXFormState = getState(id || "___DEFAULT_PROJ_TRANSFORM");
+        projXFormState = getState(PROJ_TRANSFORM, id || "___DEFAULT_PROJ_TRANSFORM");
         projXFormState.mat = mat || DEFAULT_MAT;
     };
 
     /**
+     * Set the current view matrix and view normal matrix
      */
-    this.setViewTransform = function(id, mat, normalMat) {
-        viewXFormState = getState(id || "___DEFAULT_VIEW_TRANSFORM");
+    this.setViewTransform = function(id, mat, normalMat, lookAt) {
+        viewXFormState = getState(VIEW_TRANSFORM, id || "___DEFAULT_VIEW_TRANSFORM");
         viewXFormState.mat = mat || DEFAULT_MAT;
         viewXFormState.normalMat = normalMat || DEFAULT_NORMAL_MAT;
+        viewXFormState.lookAt = lookAt || SceneJS._math_LOOKAT;
     };
 
     /**
+     * Set the current pick listeners
      */
     this.setPickListeners = function(id, listeners) {
-        pickListenersState = getState(id || "___DEFAULT_PICK_LISTENERS");
+        pickListenersState = getState(PICK_LISTENERS, id || "___DEFAULT_PICK_LISTENERS");
         pickListenersState.listeners = listeners || [];
     };
 
     /**
+     * Set the current node render listeners
      */
     this.setRenderListeners = function(id, listeners) {
-        renderListenersState = getState(id || "___DEFAULT_RENDER_LISTENERS");
+        renderListenersState = getState(RENDER_LISTENERS, id || "___DEFAULT_RENDER_LISTENERS");
         renderListenersState.listeners = listeners || [];
     };
 
-
-    /* When geometry set, add it to the state soup and make GLSL hash code on the VBOs it provides.
+    /**
+     * Add a geometry and link it to currently active resources (states)
      *
      * Geometry is automatically exported when a scene graph geometry node
      * is rendered.
@@ -9450,10 +10302,15 @@ SceneJS._renderModule = new (function() {
      * Then we create the state graph node, which has the program and pointers to
      * the current state soup elements.
      *
-     * Finally we put that node into either the opaque or transparent bin within the
-     * active bin set, depending on whether the material state is opaque or transparent.
+
      */
     this.setGeometry = function(id, geo) {
+
+        //        if (id) {
+        //            id += ".gl";
+        //        }
+
+
 
         /* Pull in dirty states from other modules
          */
@@ -9472,23 +10329,12 @@ SceneJS._renderModule = new (function() {
 
         /*
          */
-        geoState = getState(id);
+        geoState = getState(GEO, id);
         geoState.geo = geo;
         geoState.hash = ([                           // Safe to build geometry hash here - geometry is immutable
             geo.normalBuf ? "t" : "f",
             geo.uvBuf ? "t" : "f",
             geo.uvBuf2 ? "t" : "f"]).join("");
-
-        /* Lazy-create layer
-         */
-        var layer;
-        var layerName = SceneJS._layerModule.getLayer() || SceneJS._layerModule.DEFAULT_LAYER_NAME;
-        layer = states.layers[layerName];
-        if (!layer) {
-            layer = states.layers[layerName] = {
-                bin: []
-            };
-        }
 
         /* Identify what GLSL is required for the current state soup elements
          */
@@ -9500,10 +10346,19 @@ SceneJS._renderModule = new (function() {
          */
         program = getProgram(stateHash);    // Touches for LRU cache
 
+        var layerPriority;
+
+        var layerName = SceneJS._layerModule.getLayer();
+        layerPriority = layerName ? SceneJS._layerModule.getLayerPriority(layerName) : 0;
+
         /* Create state graph node, with program and
          * pointers to current state soup elements
          */
-        // nodeMap[nextStateId++] =
+        var sortId = (layerPriority * 100000) + program.id;
+
+        if (idPrefix) {
+            id = idPrefix + id;
+        }
 
         node = {
 
@@ -9511,57 +10366,55 @@ SceneJS._renderModule = new (function() {
 
             /* Node will be pre-sorted on shader
              */
-            sortId: program.id, // Assuming less than 100000 textures
-
-            //---------------------------------------------------------------------------------------------------------
-            // TODO: Sort on shader AND texture when we have debugged why states (stateIds) seem to switch around
-            // sortId: ((program.id + 1) * this.MAX_SHADERS) + texState._stateId, // Assuming less than 100000 textures
-            //---------------------------------------------------------------------------------------------------------
+            sortId: sortId,
 
             stateHash : stateHash,
 
             program : program,
 
-            geoState:           geoState,
-            flagsState:         flagsState,
-            rendererState:      rendererState,
-            lightState:         lightState,
-            colortransState :   colortransState,
-            materialState:      materialState,
-            fogState :          fogState,
-            modelXFormState:    modelXFormState,
-            viewXFormState:     viewXFormState,
-            projXFormState:     projXFormState,
-            texState:           texState,
-            pickState :         pickState,        // Will be DEFAULT_PICK because we are compiling whole scene here
-            imageBufState :     imageBufState,
-            clipState :         clipState,
-            deformState :       deformState,
-            morphState :        morphState,
-            pickListenersState: pickListenersState,
-            renderListenersState: renderListenersState
+            geoState:               geoState,
+            flagsState:             flagsState,
+            rendererState:          rendererState,
+            lightState:             lightState,
+            colortransState :       colortransState,
+            materialState:          materialState,
+            fogState :              fogState,
+            modelXFormState:        modelXFormState,
+            viewXFormState:         viewXFormState,
+            projXFormState:         projXFormState,
+            texState:               texState,
+            pickState :             pickState,        // Will be DEFAULT_PICK because we are compiling whole scene here
+            imageBufState :         imageBufState,
+            clipState :             clipState,
+            deformState :           deformState,
+            morphState :            morphState,
+            pickListenersState:     pickListenersState,
+            renderListenersState:   renderListenersState,
+
+            layerName:              layerName
         };
 
         nodeMap[id] = node;
-        flagsState.nodeId = id;
 
-        layer.bin.push(node);
+        states.bin.push(node);
+
+        /* If node has boundary, add to BVH
+         */
+        //  SceneJS._bvhModule.insertNode(geo.boundary, states.sceneId, id);
     };
-
 
     /* When the canvas deactivates, we'll render the node bins.
      */
     SceneJS._eventModule.addListener(
             SceneJS._eventModule.CANVAS_DEACTIVATED,
             function() {
-
                 if (states.needSort) {
                     preSortBins();
                     states.needSort = false;
                 } else {
-                    if (this._stateSortDelay >= 0) {
+                    if (stateSortDelay >= 0) {
                         states.rendersUntilSort--;
-                        if (states.rendersUntilSort <= 0) {
+                        if (states.rendersUntilSort == 0) { // Will not sort again until >= 0
                             states.needSort = true;
                         }
                     }
@@ -9574,7 +10427,7 @@ SceneJS._renderModule = new (function() {
      *----------------------------------------------------------------------------------------------------------------*/
 
     function setNeedBinSort() {
-        states.rendersUntilSort = this._stateSortDelay;
+        states.rendersUntilSort = stateSortDelay;
         states.needSort = false;
     }
 
@@ -9583,18 +10436,11 @@ SceneJS._renderModule = new (function() {
      * pathological because they force all other state switches.
      */
     function preSortBins() {
-        var layers = states.layers;
-        var layer;
-        for (var name in layers) {
-            if (layers.hasOwnProperty(name)) {
-                layer = layers[name];
-                layer.bin.sort(sortNodes);
-            }
-        }
+        states.bin.sort(sortNodes);
     }
 
     var sortNodes = function(a, b) {
-        return b.sortId - a.sortId;
+        return a.sortId - b.sortId;
     };
 
     /*-----------------------------------------------------------------------------------------------------------------
@@ -9602,679 +10448,65 @@ SceneJS._renderModule = new (function() {
      *----------------------------------------------------------------------------------------------------------------*/
 
     function renderFrame() {
-        NodeRenderer.init();
-        var layerOrder = SceneJS._layerModule.getLayerOrder();
-        var layer;
-        for (var i = 0, len = layerOrder.length; i < len; i++) {
-            layer = states.layers[layerOrder[i].name];
-            if (layer) {
-                renderBin(layer.bin);
-            }
-        }
-        NodeRenderer.cleanup();
+        states.nodeRenderer.init();
+        renderBin(states.bin, false); // Not picking
+        states.nodeRenderer.cleanup();
     }
 
     function renderBin(bin, picking) {
 
-        /* Render opaque nodes while buffering transparent nodes
-         */
+        var enabledLayers = SceneJS._layerModule.getEnabledLayers();
+        var context = states.canvas.context;
         var nTransparent = 0;
         var node;
         var i, len = bin.length;
         var flags;
 
+        //  var sceneBVH = SceneJS._bvhModule.sceneBVH[states.sceneId];
+
+        /* Render opaque nodes while buffering transparent nodes.
+        * Layer order is preserved independently within opaque and transparent bins.
+         */
         for (i = 0; i < len; i++) {
             node = bin[i];
+
+            //if (sceneBVH.visibleNodes[node.id]) {                     // Node within view colume
+
+            if (node.layerName && !enabledLayers[node.layerName]) {     // Skip disabled layers
+                continue;
+            }
+
             flags = node.flagsState.flags;
 
-            if (flags.enabled === false) {                   // Skip disabled node
+            if (flags.enabled === false) {                              // Skip disabled node
                 continue;
             }
 
-            if (picking && flags.picking === false) {        // When picking, skip unpickable node
+            if (picking && flags.picking === false) {                   // When picking, skip unpickable node
                 continue;
             }
 
-            if (!picking && flags.transparent === true) {    // Buffer transparent node when not picking
+            if (!picking && flags.transparent === true) {               // Buffer transparent node when not picking
                 transparentBin[nTransparent++] = node;
 
             } else {
-                NodeRenderer.renderNode(node);               // Render node if opaque or in picking mode
+                states.nodeRenderer.renderNode(node);                   // Render node if opaque or in picking mode
             }
+            //}
         }
 
         /* Render transparent nodes with blending
          */
         if (nTransparent > 0) {
-            var context = states.canvas.context;
             context.enable(context.BLEND);
-
-            //    context.blendFunc(context.SRC_ALPHA, context.ONE);  // TODO: make blend func configurable on flags?
-
-            context.blendFunc(context.SRC_ALPHA, context.ONE_MINUS_SRC_ALPHA);
+            context.blendFunc(context.SRC_ALPHA, context.ONE_MINUS_SRC_ALPHA);  // Default - may be overridden by flags
             for (i = 0,len = nTransparent; i < len; i++) {
                 node = transparentBin[i];
-                NodeRenderer.renderNode(node);
+                states.nodeRenderer.renderNode(node);
             }
             context.disable(context.BLEND);
         }
     }
-
-
-    /**
-     * State node renderer
-     */
-    const NodeRenderer = new (function() {
-
-        this._pickListeners = new Array(this.MAX_PICK_LISTENERS);
-
-        /** Facade to support node state queries while node rendering
-         */
-        this._queryFacade = {
-
-            _node: null,
-
-            _setNode: function(node) {
-                this._node = node;
-                this._mem = {};
-            },
-
-            getCameraMatrix : function() {
-                return this._mem.camMat ? this._mem.camMat : this._mem.camMat = this._node.projXFormState.mat.slice(0);
-            },
-
-            getViewMatrix : function() {
-                return this._mem.viewMat ? this._mem.viewMat : this._mem.viewMat = this._node.viewXFormState.mat.slice(0);
-            },
-
-            getModelMatrix : function() {
-                return this._mem.modelMat ? this._mem.modelMat : this._mem.modelMat = this._node.modelXFormState.mat.slice(0);
-            },
-
-            getCanvasPos : function(offset) {
-                if (this._mem.cp && (!offset)) {
-                    return this._mem.cp;
-                }
-
-                this.getProjPos(offset);
-
-                if (!this._mem.canvasWidth) {
-                    this._mem.canvasWidth = states.canvas.canvas.width;
-                    this._mem.canvasHeight = states.canvas.canvas.height;
-                }
-
-                /* Projection division and map to canvas
-                 */
-                var pc = this._mem.pc;
-                var x = (pc[0] / pc[3]) * this._mem.canvasWidth * 0.5;
-                var y = (pc[1] / pc[3]) * this._mem.canvasHeight * 0.5;
-                return this._mem.cp = {
-                    x: x + (states.canvas.canvas.width * 0.5),
-                    y: this._mem.canvasHeight - y - (this._mem.canvasHeight * 0.5)
-                };
-            },
-
-            getProjPos : function(offset) {
-                if (!this._mem.pc || offset) {
-                    this.getViewPos(offset);
-                    this._mem.pc = SceneJS._math_transformPoint3(this._node.projXFormState.mat, this._mem.vc);
-                }
-                return { x: this._mem.pc[0], y: this._mem.pc[1], z: this._mem.pc[2],  w: this._mem.pc[3] };
-            },
-
-            getViewPos : function(offset) {
-                if (!this._mem.vc || offset) {
-                    this.getWorldPos(offset);
-                    this._mem.vc = SceneJS._math_transformPoint3(this._node.viewXFormState.mat, this._mem.wc);
-                }
-                return { x: this._mem.vc[0], y: this._mem.vc[1], z: this._mem.vc[2],  w: this._mem.vc[3] };
-            },
-
-            getWorldPos : function(offset) {
-                if (!this._mem.wc || offset) {
-                    this._mem.wc = SceneJS._math_transformPoint3(this._node.modelXFormState.mat, offset || [0,0,0]);
-                }
-                return { x: this._mem.wc[0], y: this._mem.wc[1], z: this._mem.wc[2],  w: this._mem.wc[3] };
-            }
-        };
-
-
-        /**
-         * Called before we render all state nodes for a frame.
-         * Forgets any program that was used for the last node rendered, which causes it
-         * to forget all states for that node.
-         */
-        this.init = function(picking) {
-            this._picking = picking;
-            this._program = null;
-            this._lastRendererState = null;
-            this._lastImageBufState = null;
-            this._pickIndex = 0;
-        };
-
-        /**
-         * Renders a state node. Makes state changes only where the node's states have different IDs
-         * that the states of the last node. If the node has a different program than the last node
-         * rendered, Renderer forgets all states for the previous node and makes a fresh set of transitions
-         * into all states for this node.
-         */
-        this.renderNode = function(node) {
-
-            /* Prepare query facade
-             */
-            this._queryFacade._setNode(node);
-
-            /* Only pick nodes that are enabled for picking
-             */
-            if (this._picking && node.flagsState.flags.enableClip === false) {
-                return;
-            }
-
-            var context = states.canvas.context;
-
-            /* Bind program if none bound, or if node uses different program
-             * to that currently bound.
-             *
-             * Also flag all buffers as needing to be bound.
-             */
-            if ((!this._program) || (node.program.id != this._lastProgramId)) {
-                //                if (this._program) {
-                //                    this._program.unbind();
-                //                }
-
-                this._program = this._picking ? node.program.pick : node.program.render;
-                this._program.bind();
-
-                this._lastGeoStateId = -1;
-                this._lastFlagsStateId = -1;
-                this._lastColortransStateId = -1;
-                this._lastLightStateId = -1;
-                this._lastClipStateId = -1;
-                this._lastDeformStateId = -1;
-                this._lastMorphStateId = -1;
-                this._lastTexStateId = -1;
-                this._lastMaterialStateId = -1;
-                this._lastViewXFormStateId = -1;
-                this._lastModelXFormStateId = -1;
-                this._lastProjXFormStateId = -1;
-                this._lastPickStateId = -1;
-                this._lastImageBufStateId = -1;
-                this._lastFogStateId = -1;
-                this._lastPickListenersStateId = -1;
-                this._lastRenderListenersStateId = -1;
-
-                this._lastProgramId = node.program.id;
-            }
-
-            /*----------------------------------------------------------------------------------------------------------
-             * flags
-             *--------------------------------------------------------------------------------------------------------*/
-
-            if (! this._lastFlagsState || node.flagsState._stateId != this._lastFlagsState._stateId) {
-
-                /*
-                 */
-                this._lastFlagsState = node.flagsState;
-
-                //                if (!node.flagState.enabled) {
-                //                    return;
-                //                }
-
-
-            }
-
-            /*----------------------------------------------------------------------------------------------------------
-             * imagebuf
-             *--------------------------------------------------------------------------------------------------------*/
-
-            if (! this._lastImageBufState || node.imageBufState._stateId != this._lastImageBufState._stateId) {
-                if (this._lastImageBufState && this._lastImageBufState.imageBuf) {
-                    context.flush();
-                    this._lastImageBufState.imageBuf.unbind();
-                }
-                if (node.imageBufState.imageBuf) {
-                    node.imageBufState.imageBuf.bind();
-                }
-                this._lastImageBufState = node.imageBufState;
-            }
-
-            /*----------------------------------------------------------------------------------------------------------
-             * geometry or morphGeometry
-             *
-             * 1. Disable VBOs
-             * 2. If new morphGeometry then bind target VBOs and remember which arrays we bound
-             * 3. If new geometry then bind VBOs for whatever is not already bound
-             *--------------------------------------------------------------------------------------------------------*/
-
-            if ((node.geoState._stateId != this._lastGeoStateId)  // New geometry
-                    || (node.morphState.morph && node.morphState._stateId != this._lastMorphStateId)) {   // New morphGeometry
-
-                /* Disable all vertex arrays
-                 */
-                for (var k = 0; k < 8; k++) {
-                    context.disableVertexAttribArray(k);
-                }
-
-                var vertexBufBound = false;
-                var normalBufBound = false;
-                var uvBufBound = false;
-                var uvBuf2Bound = false;
-
-                var morph;
-                var target1, target2;
-
-                var geo = node.geoState.geo;
-
-                if (node.morphState.morph && node.morphState._stateId != this._lastMorphStateId) {
-
-                    /* Bind morph VBOs
-                     */
-
-                    morph = node.morphState.morph;
-
-                    target1 = morph.target1;
-                    target2 = morph.target2;
-
-                    if (target1.vertexBuf) {
-                        this._program.bindFloatArrayBuffer("aVertex", target1.vertexBuf);
-                        this._program.bindFloatArrayBuffer("aMorphVertex", target2.vertexBuf);
-                        vertexBufBound = true;
-                    }
-
-                    if (target1.normalBuf) {
-                        this._program.bindFloatArrayBuffer("aNormal", target1.normalBuf);
-                        this._program.bindFloatArrayBuffer("aMorphNormal", target2.normalBuf);
-                        normalBufBound = true;
-                    }
-
-                    if (target1.uvBuf) {
-                        this._program.bindFloatArrayBuffer("aUVCoord", target1.uvBuf);
-                        this._program.bindFloatArrayBuffer("aMorphUVCoord", target2.uvBuf);
-                        uvBufBound = true;
-                    }
-
-                    if (target1.uvBuf2) {
-                        this._program.bindFloatArrayBuffer("aUVCoord2", target1.uvBuf);
-                        this._program.bindFloatArrayBuffer("aMorphUVCoord2", target2.uvBuf);
-                        uvBuf2Bound = true;
-                    }
-
-                    this._program.setUniform("uMorphFactor", morph.factor);
-                    this._lastMorphStateId = node.morphState._stateId;
-                }
-
-                /* Bind geometry VBOs - do that in any case, since we'll always have a geometry
-                 * within a morphGeometry
-                 */
-
-                this._lastGeoStateId = node.geoState._stateId;
-
-                if (!vertexBufBound && geo.vertexBuf) {
-                    this._program.bindFloatArrayBuffer("aVertex", geo.vertexBuf);
-                }
-
-                if (!normalBufBound && geo.normalBuf) {
-                    this._program.bindFloatArrayBuffer("aNormal", geo.normalBuf);
-                }
-                // TODO
-                if (node.texState && node.texState.layers.length > 0) {
-                    if (geo.uvBuf) {
-                        this._program.bindFloatArrayBuffer("aUVCoord", geo.uvBuf);
-                    }
-                    if (geo.uvBuf2) {
-                        this._program.bindFloatArrayBuffer("aUVCoord2", geo.uvBuf2);
-                    }
-                }
-
-                geo.indexBuf.bind();
-            }
-
-            /* Set GL props
-             */
-            if (node.rendererState) {
-                if (!this._lastRendererState || node.rendererState._stateId != this._lastRendererState._stateId) {
-                    if (this._lastRendererState && this._lastRendererState.props) {
-                        this._lastRendererState.props.restoreProps(context);
-                    }
-                    if (node.rendererState.props) {
-                        node.rendererState.props.setProps(context);
-                    }
-                    this._lastRendererState = node.rendererState;
-                }
-
-                /* Bind renderer properties
-                 */
-                var clearColor;
-                if (node.rendererState.props) {
-                    clearColor = node.rendererState.props.props.clearColor;
-                }
-                this._program.setUniform("uAmbient", clearColor ? [clearColor.r, clearColor.g, clearColor.b] : [0, 0, 0]);
-            }
-
-            /*----------------------------------------------------------------------------------------------------------
-             * texture
-             *--------------------------------------------------------------------------------------------------------*/
-
-            if (node.texState._stateId != this._lastTexStateId) {
-                var layer;
-                for (var j = 0, len = node.texState.layers.length; j < len; j++) {
-                    layer = node.texState.layers[j];
-                    this._program.bindTexture("uSampler" + j, layer.texture, j);
-                    if (layer.matrixAsArray) {
-                        this._program.setUniform("uLayer" + j + "Matrix", layer.matrixAsArray);
-                    }
-                }
-                this._lastTexStateId = node.texState._stateId;
-            }
-
-            /*----------------------------------------------------------------------------------------------------------
-             * view matrix
-             *--------------------------------------------------------------------------------------------------------*/
-
-            if (node.viewXFormState._stateId != this._lastViewXFormStateId) {
-                this._program.setUniform("uVMatrix", node.viewXFormState.mat);
-                this._program.setUniform("uVNMatrix", node.viewXFormState.normalMat);
-                this._lastViewXFormStateId = node.viewXFormState._stateId;
-            }
-
-            /*----------------------------------------------------------------------------------------------------------
-             * model matrix
-             *--------------------------------------------------------------------------------------------------------*/
-
-            if (node.modelXFormState._stateId != this._lastModelXFormStateId) {
-                this._program.setUniform("uMMatrix", node.modelXFormState.mat);
-                this._program.setUniform("uMNMatrix", node.modelXFormState.normalMat);
-                this._lastModelXFormStateId = node.modelXFormState._stateId;
-            }
-
-            /*----------------------------------------------------------------------------------------------------------
-             * projection matrix
-             *--------------------------------------------------------------------------------------------------------*/
-
-            if (node.projXFormState._stateId != this._lastProjXFormStateId) {
-                this._program.setUniform("uPMatrix", node.projXFormState.mat);
-                this._lastProjXFormStateId = node.projXFormState._stateId;
-            }
-
-            /*----------------------------------------------------------------------------------------------------------
-             * clip planes
-             *--------------------------------------------------------------------------------------------------------*/
-
-            if (node.clipState && node.clipState._stateId != this._lastClipStateId) {
-                var clip;
-                for (var k = 0; k < node.clipState.clips.length; k++) {
-                    clip = node.clipState.clips[k];
-                    this._program.setUniform("uClipNormal" + k, clip.normal);
-                    this._program.setUniform("uClipDist" + k, clip.dist);
-
-                    if (node.flagsState.flags.enableClip === false) { // Flags disable/enable clipping
-                        this._program.setUniform("uClipMode" + k, 0);
-                    } else if (clip.mode == "inside") {
-                        this._program.setUniform("uClipMode" + k, 2);
-                    } else if (clip.mode == "outside") {
-                        this._program.setUniform("uClipMode" + k, 1);
-                    } else { // disabled
-                        this._program.setUniform("uClipMode" + k, 0);
-                    }
-                }
-                this._lastClipStateId = node.clipState._stateId;
-            }
-
-            /*----------------------------------------------------------------------------------------------------------
-             * deform
-             *--------------------------------------------------------------------------------------------------------*/
-
-            if (node.deformState && node.deformState.deform && node.deformState._stateId != this._lastDeformStateId) {
-                var verts = node.deformState.deform.verts;
-                var vert;
-                for (var k = 0, len = verts.length; k < len; k++) {
-                    vert = verts[k];
-                    this._program.setUniform("uDeformVertex" + k, vert.pos);
-                    this._program.setUniform("uDeformWeight" + k, vert.weight);
-                    if (vert.mode == "linear") {
-                        this._program.setUniform("uDeformMode" + k, 0.0);
-                    } else if (vert.mode == "exp") {
-                        this._program.setUniform("uDeformMode" + k, 1.0);
-                    }
-                }
-                this._lastDeformStateId = node.deformState._stateId;
-            }
-
-
-            if (!this._picking) {
-
-                /*----------------------------------------------------------------------------------------------------------
-                 * fog
-                 *--------------------------------------------------------------------------------------------------------*/
-
-                if (node.fogState && node.fogState.fog && node.fogState._stateId != this._lastFogStateId) {
-                    var fog = node.fogState.fog;
-                    if (node.flagsState.flags.fog === false || fog.mode == "disabled") {
-
-                        // When fog is disabled, don't bother loading any of its parameters
-                        // because they will be ignored by the shader
-
-                        this._program.setUniform("uFogMode", 0.0);
-                    } else {
-
-                        if (fog.mode == "constant") {
-                            this._program.setUniform("uFogMode", 4.0);
-                            this._program.setUniform("uFogColor", fog.color);
-                            this._program.setUniform("uFogDensity", fog.density);
-
-                        } else {
-
-                            if (fog.mode == "linear") {
-                                this._program.setUniform("uFogMode", 1.0);
-                            } else if (fog.mode == "exp") {
-                                this._program.setUniform("uFogMode", 2.0);
-                            } else if (fog.mode == "exp2") {
-                                this._program.setUniform("uFogMode", 3.0); // mode is "exp2"
-                            }
-                            this._program.setUniform("uFogColor", fog.color);
-                            this._program.setUniform("uFogDensity", fog.density);
-                            this._program.setUniform("uFogStart", fog.start);
-                            this._program.setUniform("uFogEnd", fog.end);
-                        }
-                    }
-                    this._lastFogStateId = node.fogState._stateId;
-                }
-
-                /*----------------------------------------------------------------------------------------------------------
-                 * colortrans
-                 *--------------------------------------------------------------------------------------------------------*/
-
-                if (node.colortransState && node.colortransState.trans && node.colortransState._stateId != this._lastColortransStateId) {
-
-                    /* Bind colortrans
-                     */
-                    if (node.flagsState.flags.colortrans === false) {
-                        this._program.setUniform("uColortransMode", 0);  // Disable
-                    } else {
-                        var trans = node.colortransState.trans;
-                        var scale = trans.scale;
-                        var add = trans.add;
-                        this._program.setUniform("uColortransMode", 1);  // Enable
-                        this._program.setUniform("uColortransScale", [scale.r, scale.g, scale.b, scale.a]);  // Scale
-                        this._program.setUniform("uColortransAdd", [add.r, add.g, add.b, add.a]);  // Scale
-                        this._program.setUniform("uColortransSaturation", trans.saturation);  // Saturation
-                        this._lastColortransStateId = node.colortransState._stateId;
-                    }
-                }
-
-                /*----------------------------------------------------------------------------------------------------------
-                 * material
-                 *--------------------------------------------------------------------------------------------------------*/
-
-                if (node.materialState && node.materialState != this._lastMaterialStateId) {
-
-                    /* Bind Material
-                     */
-                    var material = node.materialState.material;
-                    this._program.setUniform("uMaterialBaseColor", material.baseColor);
-                    this._program.setUniform("uMaterialSpecularColor", material.specularColor);
-                    this._program.setUniform("uMaterialSpecular", material.specular);
-                    this._program.setUniform("uMaterialShine", material.shine);
-                    this._program.setUniform("uMaterialEmit", material.emit);
-                    this._program.setUniform("uMaterialAlpha", material.alpha);
-
-                    this._lastMaterialStateId = node.materialState._stateId;
-
-                    /* If highlighting then override material's baseColor. We'll also force a
-                     * material state change for the next node, otherwise otherwise the highlight
-                     * may linger in the shader uniform if there is no material state change for the next node.
-                     */
-                    if (node.flagsState && node.flagsState.flags.highlight) {
-                        this._program.setUniform("uMaterialBaseColor", material.highlightBaseColor);
-                        this._lastMaterialStateId = null;
-                    }
-                }
-
-                /*----------------------------------------------------------------------------------------------------------
-                 * lights
-                 *--------------------------------------------------------------------------------------------------------*/
-
-                if (node.lightState && node.lightState._stateId != this._lastLightStateId) {
-                    var ambient;
-                    var light;
-                    for (var k = 0; k < node.lightState.lights.length; k++) {
-                        light = node.lightState.lights[k];
-                        this._program.setUniform("uLightColor" + k, light.color);
-                        this._program.setUniform("uLightDiffuse" + k, light.diffuse);
-                        if (light.mode == "dir") {
-                            this._program.setUniform("uLightDir" + k, light.viewDir);
-                        } else if (light.mode == "ambient") {
-                            ambient = ambient ? [
-                                ambient[0] + light.color[0],
-                                ambient[1] + light.color[1],
-                                ambient[2] + light.color[2]
-                            ] : light.color;
-                        } else {
-                            if (light.mode == "point") {
-                                this._program.setUniform("uLightPos" + k, light.viewPos);
-                            }
-                            if (light.mode == "spot") {
-                                this._program.setUniform("uLightPos" + k, light.viewPos);
-                                this._program.setUniform("uLightDir" + k, light.viewDir);
-                                this._program.setUniform("uLightSpotCosCutOff" + k, light.spotCosCutOff);
-                                this._program.setUniform("uLightSpotExp" + k, light.spotExponent);
-                            }
-                            this._program.setUniform("uLightAttenuation" + k,
-                                    [
-                                        light.constantAttenuation,
-                                        light.linearAttenuation,
-                                        light.quadraticAttenuation
-                                    ]);
-                        }
-                    }
-                    this._lastLightStateId = node.lightState._stateId;
-                }
-
-            }
-
-            /*----------------------------------------------------------------------------------------------------------
-             * Pick listeners
-             *--------------------------------------------------------------------------------------------------------*/
-
-            if (this._picking) {
-
-                if (! this._lastPickListenersState || node.pickListenersState._stateId != this._lastPickListenersState._stateId) {
-
-                    if (node.pickListenersState.listeners.length > 0) {
-
-                        this._pickListeners[this._pickIndex++] = node.pickListenersState;
-
-                        var b = this._pickIndex >> 16 & 0xFF;
-                        var g = this._pickIndex >> 8 & 0xFF;
-                        var r = this._pickIndex & 0xFF;
-                        g = g / 255;
-                        r = r / 255;
-                        b = b / 255;
-
-                        this._program.setUniform("uPickColor", [r,g,b]);
-                    }
-                    this._lastPickListenersState = node.pickListenersState;
-                }
-            }
-
-            if (!this._picking) {    // TODO: do we ever want matrices during a pick pass?
-
-                /*----------------------------------------------------------------------------------------------------------
-                 * Render listeners
-                 *--------------------------------------------------------------------------------------------------------*/
-
-                if (! this._lastRenderListenersState || node.renderListenersState._stateId != this._lastRenderListenersState._stateId) {
-                    if (node.renderListenersState) {
-                        var listeners = node.renderListenersState.listeners;
-                        for (var i = listeners.length - 1; i >= 0; i--) {
-                            listeners[i](this._queryFacade);             // Call listener with query facade object as scope
-                        }
-                        this._lastRenderListenersState = node.renderListenersState;
-                    }
-                }
-            }
-
-            /*----------------------------------------------------------------------------------------------------------
-             * Draw the geometry;  When wireframe option is set we'll render
-             * triangle primitives as wireframe
-             * TODO: should we also suppress shading in the renderer? This will currently apply phong shading to the lines.
-             *--------------------------------------------------------------------------------------------------------*/
-
-            var primitive = node.geoState.geo.primitive;
-            if (node.rendererState && node.flagsState.flags.wireframe) {
-                if (primitive == context.TRIANGLES ||
-                    primitive == context.TRIANGLE_STRIP ||
-                    primitive == context.TRIANGLE_FAN) {
-
-                    primitive = context.LINES;
-                }
-            }
-
-            context.drawElements(
-                    primitive,
-                    node.geoState.geo.indexBuf.numItems,
-                    context.UNSIGNED_SHORT,
-                    0);
-        };
-
-        /**
-         * Called after all nodes rendered for the current frame
-         */
-        this.cleanup = function() {
-
-
-            //            if (node._pickListenersState) {     // Post-call last listeners
-            //
-            //            }
-
-            ///////////////////////////////////////////
-            states.canvas.context.finish();
-            ///////////////////////////////////////////
-
-
-            //            if (this._lastRendererState) {
-            //                this._lastRendererState.props.restoreProps(canvas.context);
-            //            }
-            //            if (this._program) {
-            //                this._program.unbind();
-            //            }
-
-
-            ////////////////////////////////////////////
-            //             if (this._lastImageBufState && this._lastImageBufState.imageBuf) {
-            //                    context.flush();
-            //                    this._lastImageBufState.imageBuf.unbind();
-            //                 this._lastImageBufState = null;
-            //                }
-            ////////////////////////////////////////////
-
-            if (this._program) {
-                this._program.unbind();
-                this._program = null;
-            }
-            return this._pickListeners;
-        };
-    })();
 
     //-----------------------------------------------------------------------------------------------------------------
     //  Shader generation
@@ -10290,12 +10522,16 @@ SceneJS._renderModule = new (function() {
             clipState.hash,
             deformState.hash,
             morphState.hash,
-            geoState.hash]).join(";");
+            geoState.hash
+        ]).join(";");
     }
 
     function getProgram(stateHash) {
         if (!programs[stateHash]) {
-            SceneJS._loggingModule.info("Creating render and pick shaders: '" + stateHash + "'");
+            if (debugCfg.logScripts === true) {
+                SceneJS._loggingModule.info("Creating render and pick shaders: '" + stateHash + "'");
+            }
+
             programs[stateHash] = {
                 id: nextProgramId++,
                 render: createShader(composeRenderingVertexShader(), composeRenderingFragmentShader()),
@@ -10327,7 +10563,7 @@ SceneJS._renderModule = new (function() {
                         SceneJS._loggingModule.debug(getShaderLoggingSource(vertexShaderSrc.split(";")));
                         SceneJS._loggingModule.debug("Fragment shader:");
                         SceneJS._loggingModule.debug(getShaderLoggingSource(fragmentShaderSrc.split(";")));
-                        throw SceneJS._errorModule.fatalError(e);
+                        throw SceneJS._errorModule.fatalError(SceneJS.errors.ERROR, "Failed to create shader: " + e.message || e);
                     }
                 });
         return p;
@@ -10338,6 +10574,9 @@ SceneJS._renderModule = new (function() {
     }
 
     function composePickingVertexShader() {
+
+        var clipping = clipState && clipState.clips.length > 0;
+
         var src = [
             "#ifdef GL_ES",
             "   precision highp float;",
@@ -10347,10 +10586,57 @@ SceneJS._renderModule = new (function() {
             "uniform mat4 uVMatrix;",
             "uniform mat4 uPMatrix;"];
 
+        /*-----------------------------------------------------------------------------------
+         * Variables - Clipping
+         *----------------------------------------------------------------------------------*/
+
+        if (clipping) {
+
+            for (var i = 0; i < clipState.clips.length; i++) {
+
+                /* INPUT: Clip planes
+                 */
+                src.push("uniform float uClipMode" + i + ";");
+                src.push("uniform vec4  uClipA" + i + ";");
+                src.push("uniform vec4  uClipB" + i + ";");
+                src.push("uniform vec4  uClipC" + i + ";");
+
+                /* OUTPUT: view-space normal and distance from origin
+                 */
+                src.push("varying vec4  vClipNormalAndDist" + i + ";");
+            }
+        }
+
         src.push("varying vec4 vViewVertex;");
         src.push("void main(void) {");
         src.push("  vec4 tmpVertex = uVMatrix * (uMMatrix * vec4(aVertex, 1.0)); ");
         src.push("  vViewVertex = tmpVertex;");
+
+        /*-----------------------------------------------------------------------------------
+         * Logic - Clipping
+         *----------------------------------------------------------------------------------*/
+
+        if (clipping) {
+            src.push("  vec4    tempA;");
+            src.push("  vec4    tempB;");
+            src.push("  vec4    tempC;");
+            src.push("  vec3    tempNormal;");
+
+            for (var i = 0; i < clipState.clips.length; i++) {
+
+                src.push("    if (uClipMode" + i + " != 0.0) {");
+
+                src.push("        tempA = uVMatrix * uClipA" + i + ";");
+                src.push("        tempB = uVMatrix * uClipB" + i + ";");
+                src.push("        tempC = uVMatrix * uClipC" + i + ";");
+
+                src.push("        tempNormal = normalize(cross(normalize(tempB.xyz - tempA.xyz), normalize(tempB.xyz - tempC.xyz)));");
+
+                src.push("        vClipNormalAndDist" + i + " = vec4(tempNormal.xyz, dot(tempNormal, tempA.xyz));");
+                src.push("    }");
+            }
+        }
+
         src.push("  gl_Position = uPMatrix * vViewVertex;");
         src.push("}");
 
@@ -10372,29 +10658,31 @@ SceneJS._renderModule = new (function() {
             "   precision highp float;",
             "#endif"];
 
+        src.push("varying vec4 vViewVertex;");
         src.push("uniform vec3 uPickColor;");
 
-        /* User-defined clipping vars
-         */
+        /*-----------------------------------------------------------------------------------
+         * Variables - Clipping
+         *----------------------------------------------------------------------------------*/
+
         if (clipping) {
-            src.push("varying vec4 vViewVertex;");              // View-space vertex
             for (var i = 0; i < clipState.clips.length; i++) {
                 src.push("uniform float uClipMode" + i + ";");
-                src.push("uniform vec3  uClipNormal" + i + ";");
-                src.push("uniform float uClipDist" + i + ";");
+                src.push("varying vec4  vClipNormalAndDist" + i + ";");
             }
         }
 
         src.push("void main(void) {");
 
-        /* User-defined clipping logic
-         */
+        /*-----------------------------------------------------------------------------------
+         * Logic - Clipping
+         *----------------------------------------------------------------------------------*/
 
         if (clipping) {
             src.push("  float   dist;");
             for (var i = 0; i < clipState.clips.length; i++) {
                 src.push("    if (uClipMode" + i + " != 0.0) {");
-                src.push("        dist = dot(vViewVertex.xyz, uClipNormal" + i + ") - uClipDist" + i + ";");
+                src.push("        dist = dot(vViewVertex.xyz, vClipNormalAndDist" + i + ".xyz) - vClipNormalAndDist" + i + ".w;");
                 src.push("        if (uClipMode" + i + " == 1.0) {");
                 src.push("            if (dist < 0.0) { discard; }");
                 src.push("        }");
@@ -10404,7 +10692,6 @@ SceneJS._renderModule = new (function() {
                 src.push("    }");
             }
         }
-
         src.push("    gl_FragColor = vec4(uPickColor.rgb, 1.0);  ");
 
         src.push("}");
@@ -10450,6 +10737,7 @@ SceneJS._renderModule = new (function() {
 
         var texturing = isTexturing();
         var lighting = isLighting();
+        var clipping = clipState.clips.length > 0;
         var deforming = deformState.deform && true;
         var morphing = morphState.morph && true;
 
@@ -10458,15 +10746,21 @@ SceneJS._renderModule = new (function() {
             "   precision highp float;",
             "#endif"
         ];
-        src.push("attribute vec3 aVertex;");                // World coordinates
+        src.push("attribute vec3 aVertex;");                // Model coordinates
+
+        /*-----------------------------------------------------------------------------------
+         * Variables - Lighting
+         *----------------------------------------------------------------------------------*/
 
         if (lighting) {
-            src.push("attribute vec3 aNormal;");            // Normal vectors
-            src.push("uniform   mat4 uMNMatrix;");            // Model normal matrix
-            src.push("uniform   mat4 uVNMatrix;");            // View normal matrix
+            src.push("attribute vec3 aEye;");           // World-space eye position
 
-            src.push("varying   vec3 vNormal;");              // Output view normal vector
-            src.push("varying   vec3 vEyeVec;");              // Output view eye vector
+            src.push("attribute vec3 aNormal;");        // Normal vectors
+            src.push("uniform   mat4 uMNMatrix;");      // Model normal matrix
+            src.push("uniform   mat4 uVNMatrix;");      // View normal matrix
+
+            src.push("varying   vec3 vNormal;");        // Output view normal vector
+            src.push("varying   vec3 vEyeVec;");        // Output view eye vector
 
             for (var i = 0; i < lightState.lights.length; i++) {
                 var light = lightState.lights[i];
@@ -10480,8 +10774,9 @@ SceneJS._renderModule = new (function() {
                     src.push("uniform vec4 uLightPos" + i + ";");
                 }
 
-                src.push("varying vec3 vLightVec" + i + ";");
-                src.push("varying float vLightDist" + i + ";");
+                /* Vector from vertex to light, packaged with the pre-computed length of that vector
+                 */
+                src.push("varying vec4 vLightVecAndDist" + i + ";");
             }
         }
 
@@ -10493,6 +10788,14 @@ SceneJS._renderModule = new (function() {
                 src.push("attribute vec2 aUVCoord2;");     // UV2 coords
             }
         }
+
+        /* Vertex color variables
+         */
+        if (geoState.geo.colorBuf) {
+            src.push("attribute vec4 aVertexColor;");     // UV2 coords
+            src.push("varying vec4 vColor;");
+        }
+
         src.push("uniform mat4 uMMatrix;");                // Model matrix
         src.push("uniform mat4 uVMatrix;");                // View matrix
         src.push("uniform mat4 uPMatrix;");                 // Projection matrix
@@ -10508,8 +10811,10 @@ SceneJS._renderModule = new (function() {
             }
         }
 
-        /* Morphing - declare uniforms for target and interpolation factor
-         */
+        /*-----------------------------------------------------------------------------------
+         * Variables - Morphing
+         *----------------------------------------------------------------------------------*/
+
         if (morphing) {
             src.push("uniform float uMorphFactor;");       // LERP factor for morph
             if (morphState.morph.target1.vertexBuf) {      // target2 has these arrays also
@@ -10532,32 +10837,63 @@ SceneJS._renderModule = new (function() {
             }
         }
 
+        /*-----------------------------------------------------------------------------------
+         * Variables - Clipping
+         *----------------------------------------------------------------------------------*/
+
+        if (clipping) {
+
+            for (var i = 0; i < clipState.clips.length; i++) {
+
+                /* INPUT: Clip planes
+                 */
+                src.push("uniform float uClipMode" + i + ";");
+                src.push("uniform vec4  uClipA" + i + ";");
+                src.push("uniform vec4  uClipB" + i + ";");
+                src.push("uniform vec4  uClipC" + i + ";");
+
+                /* OUTPUT: view-space normal and distance from origin
+                 */
+                src.push("varying vec4  vClipNormalAndDist" + i + ";");
+            }
+        }
+
         src.push("void main(void) {");
 
-        src.push("  vec4 tmpVertex = uVMatrix * (uMMatrix * vec4(aVertex, 1.0)); ");
+        src.push("  vec4 modelVertex = vec4(aVertex, 1.0); ");
 
         if (lighting) {
-            src.push("  vec4 tmpNormal = uVNMatrix * (uMNMatrix * vec4(aNormal, 1.0)); ");
+            src.push("  vec4 modelNormal = vec4(aNormal, 0.0); ");
         }
 
         /*
-         * Morphing - transform morph targets and interpolate towards it
+         * Morphing - morph targets are in same model space as the geometry
          */
         if (morphing) {
             if (morphState.morph.target1.vertexBuf) {
-                src.push("  vec4 vMorphVertex = uVMatrix * (uMMatrix * vec4(aMorphVertex, 1.0)); ");
-                src.push("  tmpVertex = vec4(tmpVertex.xyz + mix(tmpVertex.xyz, vMorphVertex.xyz, uMorphFactor), 1.0); ");
+                src.push("  vec4 vMorphVertex = vec4(aMorphVertex, 1.0); ");
+                src.push("  modelVertex = vec4(mix(modelVertex.xyz, vMorphVertex.xyz, uMorphFactor), 1.0); ");
             }
             if (lighting) {
                 if (morphState.morph.target1.normalBuf) {
-                    src.push("  vec4 vMorphNormal = uVMatrix * (uMMatrix * vec4(aMorphNormal, 1.0)); ");
-                    src.push("  tmpNormal = vec4(tmpNormal.xyz + mix(tmpNormal.xyz, vMorphNormal.xyz, 0.0), 1.0); ");
+                    src.push("  vec4 vMorphNormal = vec4(aMorphNormal, 1.0); ");
+                    src.push("  modelNormal = vec4( mix(modelNormal.xyz, vMorphNormal.xyz, 0.0), 1.0); ");
                 }
             }
         }
 
+        src.push("  vec4 worldVertex = uMMatrix * modelVertex; ");
+
+
+        if (lighting) {
+
+            /* Transform normal from model to view space
+             */
+            src.push("  vec4 worldNormal = uMNMatrix * modelNormal; ");
+        }
+
         /*
-         * Deformation
+         * Deformation - apply world-space deform points to world-space vertex
          */
         if (deforming) {
             src.push("  vec3 deformVec;");
@@ -10565,50 +10901,81 @@ SceneJS._renderModule = new (function() {
             src.push("  vec3 deformVecSum = vec3(0.0, 0.0, 0.0);");
             src.push("  float deformScalar;");
             for (var i = 0, len = deformState.deform.verts.length; i < len; i++) {
-                src.push("deformVec = uDeformVertex" + i + ".xyz - tmpVertex.xyz;");
+                src.push("deformVec = vec4(uDeformVertex" + i + ".xyz, 1.0).xyz - worldVertex.xyz;");
                 src.push("deformLen = length(deformVec);");
                 src.push("if (uDeformMode" + i + " == 0.0) {");
                 src.push("    deformScalar = deformLen;");
                 src.push("} else {");
                 src.push("    deformScalar = deformLen * deformLen;");
                 src.push("}");
-                src.push("deformVecSum += deformVec * -uDeformWeight" + i + " * (1.0 / deformScalar);"); // TODO: weight
+                src.push("deformVecSum += (deformVec * -uDeformWeight" + i + " * (1.0 / deformScalar));"); // TODO: weight
             }
 
-            src.push("tmpVertex = vec4(deformVecSum.xyz + tmpVertex.xyz, 1.0);");
+            src.push("worldVertex = vec4(deformVecSum.xyz + worldVertex.xyz, 1.0);");
         }
+
+        src.push("  vec4 viewVertex  = uVMatrix * worldVertex; ");
 
         if (lighting) {
-            src.push("  vNormal = normalize(tmpNormal.xyz);");
-
+            src.push("  vNormal = normalize(worldNormal.xyz);");
         }
 
-        src.push("  vViewVertex = tmpVertex;");
+        src.push("  vViewVertex = viewVertex;");
         src.push("  gl_Position = uPMatrix * vViewVertex;");
 
+        /*-----------------------------------------------------------------------------------
+         * Logic - Lighting
+         *
+         * Transform the world-space lights into view space
+         *----------------------------------------------------------------------------------*/
 
-        /* Lighting
-         */
-        src.push("  vec3 tmpVec;");
+        src.push("  vec3 tmpVec3;");
         if (lighting) {
+            var light;
             for (var i = 0; i < lightState.lights.length; i++) {
-                var light = lightState.lights[i];
+                light = lightState.lights[i];
                 if (light.mode == "dir") {
-                    src.push("tmpVec = -uLightDir" + i + ";");
+                    src.push("vLightVecAndDist" + i + " = vec4(-normalize(uLightDir" + i + "), 0.0);");
                 }
                 if (light.mode == "point") {
-                    src.push("tmpVec = -(uLightPos" + i + ".xyz - tmpVertex.xyz);");
-                    src.push("vLightDist" + i + " = length(tmpVec);");          // Distance from light to vertex
+                    src.push("tmpVec3 = -(uLightPos" + i + ".xyz - worldVertex.xyz);");
+                    src.push("vLightVecAndDist" + i + " = vec4(normalize(tmpVec3), length(tmpVec3));");
                 }
                 if (light.mode == "spot") {
-                    src.push("tmpVec = -(uLightPos" + i + ".xyz - tmpVertex.xyz);");
-                    src.push("vLightDist" + i + " = length(tmpVec);");          // Distance from light to vertex
 
                 }
-                src.push("vLightVec" + i + " = tmpVec;");                   // Vector from light to vertex
-
             }
-            src.push("vEyeVec = normalize(-vViewVertex.xyz);");
+        }
+
+        /*-----------------------------------------------------------------------------------
+         * Logic - Clipping
+         *
+         *
+         *----------------------------------------------------------------------------------*/
+
+        if (clipping) {
+            src.push("  vec4    tempA;");
+            src.push("  vec4    tempB;");
+            src.push("  vec4    tempC;");
+            src.push("  vec3    tempNormal;");
+
+            for (var i = 0; i < clipState.clips.length; i++) {
+
+                src.push("    if (uClipMode" + i + " != 0.0) {");
+
+                src.push("        tempA = uVMatrix * uClipA" + i + ";");
+                src.push("        tempB = uVMatrix * uClipB" + i + ";");
+                src.push("        tempC = uVMatrix * uClipC" + i + ";");
+
+                src.push("        tempNormal = normalize(cross(normalize(tempB.xyz - tempA.xyz), normalize(tempB.xyz - tempC.xyz)));");
+
+                src.push("        vClipNormalAndDist" + i + " = vec4(tempNormal.xyz, dot(tempNormal, tempA.xyz));");
+                src.push("    }");
+            }
+        }
+
+        if (lighting) {
+            src.push("vEyeVec = -normalize(aEye - worldVertex.xyz);");
         }
 
         if (texturing) {
@@ -10619,6 +10986,13 @@ SceneJS._renderModule = new (function() {
                 src.push("vUVCoord2 = aUVCoord2;");
             }
         }
+
+        /* Vertex colouring
+         */
+        if (geoState.geo.colorBuf) {
+            src.push("vColor = aVertexColor;");
+        }
+
         src.push("}");
         if (debugCfg.logScripts === true) {
             SceneJS._loggingModule.info(src);
@@ -10626,9 +11000,10 @@ SceneJS._renderModule = new (function() {
         return src.join("\n");
     }
 
-    /**
-     * @private
-     */
+    /*-----------------------------------------------------------------------------------------------------------------
+     * Rendering Fragment shader
+     *---------------------------------------------------------------------------------------------------------------*/
+
     function composeRenderingFragmentShader() {
         var texturing = isTexturing();
         var lighting = isLighting();
@@ -10644,13 +11019,14 @@ SceneJS._renderModule = new (function() {
 
         src.push("varying vec4 vViewVertex;");              // View-space vertex
 
-        /* User-defined clipping vars
-         */
+        /*-----------------------------------------------------------------------------------
+         * Variables - Clipping
+         *----------------------------------------------------------------------------------*/
+
         if (clipping) {
             for (var i = 0; i < clipState.clips.length; i++) {
                 src.push("uniform float uClipMode" + i + ";");
-                src.push("uniform vec3  uClipNormal" + i + ";");
-                src.push("uniform float uClipDist" + i + ";");
+                src.push("varying vec4  vClipNormalAndDist" + i + ";");
             }
         }
 
@@ -10671,6 +11047,13 @@ SceneJS._renderModule = new (function() {
             }
         }
 
+
+        /* Vertex color variable
+         */
+        if (geoState.geo.colorBuf) {
+            src.push("varying vec4 vColor;");
+        }
+
         src.push("uniform vec3  uMaterialBaseColor;");
         src.push("uniform float uMaterialAlpha;");
 
@@ -10682,10 +11065,8 @@ SceneJS._renderModule = new (function() {
         src.push("  float   emit    = uMaterialEmit;");
 
         if (lighting) {
-            src.push("varying vec3 n;");
             src.push("varying vec3 vNormal;");                  // View-space normal
             src.push("varying vec3 vEyeVec;");                  // Direction of view-space vertex from eye
-
 
             src.push("uniform vec3  uMaterialSpecularColor;");
             src.push("uniform float uMaterialSpecular;");
@@ -10695,20 +11076,14 @@ SceneJS._renderModule = new (function() {
                 var light = lightState.lights[i];
                 src.push("uniform vec3  uLightColor" + i + ";");
                 if (light.mode == "point") {
-                    src.push("uniform vec4   uLightPos" + i + ";");
+                    src.push("uniform vec3  uLightAttenuation" + i + ";");
                 }
-                if (light.mode == "dir") {
-                    src.push("uniform vec3   uLightDir" + i + ";");
-                }
-                if (light.mode == "spot") {
-                    src.push("uniform vec4   uLightPos" + i + ";");
-                    src.push("uniform vec3   uLightDir" + i + ";");
-                    src.push("uniform float  uLightSpotCosCutOff" + i + ";");
-                    src.push("uniform float  uLightSpotExp" + i + ";");
-                }
-                src.push("uniform vec3  uLightAttenuation" + i + ";");
-                src.push("varying vec3  vLightVec" + i + ";");         // Vector from light to vertex
-                src.push("varying float vLightDist" + i + ";");        // Distance from light to vertex
+                //                if (light.mode == "spot") {
+                //                   src.push("uniform vec3   uLightDir" + i + ";");
+                //                    src.push("uniform float  uLightSpotCosCutOff" + i + ";");
+                //                    src.push("uniform float  uLightSpotExp" + i + ";");
+                //                }
+                src.push("varying vec4  vLightVecAndDist" + i + ";");         // Vector from light to vertex
             }
         }
 
@@ -10735,17 +11110,23 @@ SceneJS._renderModule = new (function() {
         //--------------------------------------------------------------------------
 
         src.push("void main(void) {");
-        src.push("  vec3    color   = uMaterialBaseColor;");
-        src.push("  float   alpha   = uMaterialAlpha;");
+        if (geoState.geo.colorBuf) {
+            src.push("  vec3    color   = vColor.rgb;");
+            src.push("  float   alpha   = vColor.a;");
+        } else {
+            src.push("  vec3    color   = uMaterialBaseColor;");
+            src.push("  float   alpha   = uMaterialAlpha;");
+        }
 
-        /* User-defined clipping logic
-         */
+        /*-----------------------------------------------------------------------------------
+         * Logic - Clipping
+         *----------------------------------------------------------------------------------*/
 
         if (clipping) {
             src.push("  float   dist;");
             for (var i = 0; i < clipState.clips.length; i++) {
                 src.push("    if (uClipMode" + i + " != 0.0) {");
-                src.push("        dist = dot(vViewVertex.xyz, uClipNormal" + i + ") - uClipDist" + i + ";");
+                src.push("        dist = dot(vViewVertex.xyz, vClipNormalAndDist" + i + ".xyz) - vClipNormalAndDist" + i + ".w;");
                 src.push("        if (uClipMode" + i + " == 1.0) {");
                 src.push("            if (dist < 0.0) { discard; }");
                 src.push("        }");
@@ -10817,7 +11198,13 @@ SceneJS._renderModule = new (function() {
 
                 /* Alpha from Texture
                  * */
-                //   src.push("alpha = texture2D(uSampler" + i + ", vec2(textureCoord.x, 1.0 - textureCoord.y)).a;");
+                if (layer.applyTo == "alpha") {
+                    if (layer.blendMode == "multiply") {
+                        src.push("alpha = alpha * texture2D(uSampler" + i + ", vec2(textureCoord.x, 1.0 - textureCoord.y)).b;");
+                    } else if (layer.blendMode == "add") {
+                        src.push("alpha = alpha + texture2D(uSampler" + i + ", vec2(textureCoord.x, 1.0 - textureCoord.y)).b;");
+                    }
+                }
 
                 /* Texture output
                  */
@@ -10861,20 +11248,24 @@ SceneJS._renderModule = new (function() {
             src.push("  float   dotN;");
             src.push("  float   spotFactor;");
             src.push("  float   pf;");
+            src.push("  float   lightDist;");
 
             for (var i = 0; i < lightState.lights.length; i++) {
                 var light = lightState.lights[i];
-                src.push("lightVec = normalize(vLightVec" + i + ");");
+                src.push("lightVec = vLightVecAndDist" + i + ".xyz;");
 
                 /* Point Light
                  */
                 if (light.mode == "point") {
+
+                    src.push("lightDist = vLightVecAndDist" + i + ".w;");
+
                     src.push("dotN = max(dot(normalVec, lightVec),0.0);");
                     src.push("if (dotN > 0.0) {");
                     src.push("  attenuation = 1.0 / (" +
                              "  uLightAttenuation" + i + "[0] + " +
-                             "  uLightAttenuation" + i + "[1] * vLightDist" + i + " + " +
-                             "  uLightAttenuation" + i + "[2] * vLightDist" + i + " * vLightDist" + i + ");");
+                             "  uLightAttenuation" + i + "[1] * lightDist + " +
+                             "  uLightAttenuation" + i + "[2] * lightDist * lightDist);");
                     if (light.diffuse) {
                         src.push("  lightValue += dotN *  uLightColor" + i + " * attenuation;");
                     }
@@ -10890,6 +11281,7 @@ SceneJS._renderModule = new (function() {
                 if (light.mode == "dir") {
 
                     src.push("dotN = max(dot(normalVec,lightVec),0.0);");
+
                     if (light.diffuse) {
                         src.push("lightValue += dotN * uLightColor" + i + ";");
                     }
@@ -10902,11 +11294,14 @@ SceneJS._renderModule = new (function() {
                 /* Spot light
                  */
                 if (light.mode == "spot") {
-                    src.push("spotFactor = max(dot(normalize(uLightDir" + i + "), lightVec));");
-                    src.push("if ( spotFactor > 20) {");
-                    src.push("  spotFactor = pow(spotFactor, uLightSpotExp" + i + ");");
-                    src.push("  dotN = max(dot(normalVec,normalize(lightVec)),0.0);");
-                    src.push("      if(dotN>0.0){");
+
+                    //                    src.push("lightDist = vLightVecAndDist" + i + ".w;");
+                    //
+                    //                    src.push("spotFactor = max(dot(normalize(uLightDir" + i + "), lightVec));");
+                    //                    src.push("if ( spotFactor > 20) {");
+                    //                    src.push("  spotFactor = pow(spotFactor, uLightSpotExp" + i + ");");
+                    //                    src.push("  dotN = max(dot(normalVec,lightVec),0.0);");
+                    //                    src.push("      if(dotN>0.0){");
 
                     //                            src.push("          attenuation = spotFactor / (" +
                     //                                     "uLightAttenuation" + i + "[0] + " +
@@ -10919,15 +11314,15 @@ SceneJS._renderModule = new (function() {
                     }
                     if (light.specular) {
                         src.push("specularValue += attenuation * specularColor * uLightColor" + i +
-                                 " * specular  * pow(max(dot(reflect(normalize(lightVec), normalVec),normalize(vEyeVec)),0.0), shine);");
+                                 " * specular  * pow(max(dot(reflect(lightVec, normalVec),normalize(vEyeVec)),0.0), shine);");
                     }
 
                     src.push("      }");
                     src.push("}");
                 }
             }
-            src.push("if (emit>0.0) lightValue = vec3(1.0, 1.0, 1.0);");
-            src.push("vec4 fragColor = vec4(specularValue.rgb + color.rgb * (emit+1.0) * lightValue.rgb, alpha);");
+
+            src.push("vec4 fragColor = vec4((specularValue.rgb + color.rgb * lightValue.rgb) + (emit * color.rgb), alpha);");
         } else {
 
             /* No lighting
@@ -10956,6 +11351,7 @@ SceneJS._renderModule = new (function() {
         if (colortrans) {
 
             src.push("    if (uColortransMode != 0.0) {");     // Not disabled
+
             /* Desaturate
              */
             src.push("        if (uColortransSaturation < 0.0) {");
@@ -10991,24 +11387,20 @@ SceneJS._renderModule = new (function() {
 
         /* Render display list in pick mode
          */
-        NodeRenderer.init(true);
-        var layerOrder = SceneJS._layerModule.getLayerOrder();
-        var layer;
-        for (var i = 0, len = layerOrder.length; i < len; i++) {
-            layer = states.layers[layerOrder[i].name];
-            if (layer) {
-                renderBin(layer.bin, true);
-            }
-        }
+        states.nodeRenderer.init(true);
+
+        renderBin(states.bin, true);
 
         /* Read pick buffer
          */
         var pickIndex = readPickBuffer(canvasX, canvasY);
 
+        var wasPicked = (pickIndex >= 0);
+
         /* Notify listeners
          */
-        if (pickIndex >= 0) {
-            var pickListeners = NodeRenderer._pickListeners[pickIndex];
+        if (wasPicked) {
+            var pickListeners = states.nodeRenderer._pickListeners[pickIndex];
             if (pickListeners) {
                 var listeners = pickListeners.listeners;
                 for (var i = listeners.length - 1; i >= 0; i--) {
@@ -11020,7 +11412,11 @@ SceneJS._renderModule = new (function() {
         /* Clean up
          */
         unbindPickBuffer();
-        NodeRenderer.cleanup();
+        states.nodeRenderer.cleanup();
+
+        /* Notify caller whether pick was made or not
+         */
+        return wasPicked;
     }
 
     function createPickBuffer() {
@@ -11128,38 +11524,46 @@ SceneJS._renderModule = new (function() {
         context.bindFramebuffer(context.FRAMEBUFFER, null);
     }
 
-    //
-    //    var MaterialState = function(stateId, material) {
-    //
-    //        this.stateId = stateId;
-    //
-    //        this.baseColor = material.baseColor || [ 0.0, 0.0, 0.0 ];
-    //        this.highlightBaseColor = material.highlightBaseColor || material.baseColor || [ 0.0, 0.0, 0.0 ];
-    //        this.specularColor = material.specularColor || [ 0.5,  0.5,  0.5 ];
-    //        this.specular = material.specular != undefined ? material.specular : 2;
-    //        this.shine = material.shine != undefined ? material.shine : 0.5;
-    //        this.reflect = material.reflect != undefined ? material.reflect : 0;
-    //        this.alpha = material.alpha != undefined ? material.alpha : 1.0;
-    //        this.emit = material.emit != undefined ? material.emit : 0.0;
-    //    };
-    //
-    //    this.findVars = function(program) {
-    //        this.uMaterialBaseColor = program.getLocation("uMaterialBaseColor");
-    //        this.uMaterialSpecularColor = program.getLocation("uMaterialSpecularColor");
-    //        this.uMaterialSpecular = program.getLocation("uMaterialSpecular");
-    //        this.uMaterialShine = program.getLocation("uMaterialShine");
-    //        this.uMaterialEmit = program.getLocation("uMaterialEmit");
-    //        this.uMaterialAlpha = program.getLocation("uMaterialAlpha");
-    //    };
-    //
-    //    this.bind = function(renderer, node, context) {
-    //        context.uniform3fv(this.uMaterialBaseColor, this.baseColor);
-    //        context.uniform3fv(this.uMaterialSpecularColor, this.specularColor);
-    //        context.uniform1fv(this.uMaterialSpecular, this.specular);
-    //        context.uniform1fv(this.uMaterialShine, this.shine);
-    //        context.uniform1fv(this.uMaterialEmit, this.emit);
-    //        context.uniform1fv(this.uMaterialAlpha, this.alpha);
-    //    };
+
+    function composeBBoxVertexShader() {
+        var src = [
+            "#ifdef GL_ES",
+            "   precision highp float;",
+            "#endif",
+
+            /* Axis-aligned bounding box
+             */
+            "attribute vec3 aBBoxMin;",
+            "attribute vec3 aBBoxMax;",
+
+            /* Transform matrices
+             */
+            "uniform mat4 uMMatrix;",
+            "uniform mat4 uVMatrix;",
+            "uniform mat4 uPMatrix;"];
+
+        src.push("varying vec3 vViewVertex;");
+
+        src.push("void main(void) {");
+        src.push("  vec4 tmpMin = uVMatrix * (uMMatrix * vec4(aBBoxMin, 1.0)); ");
+        src.push("  vec4 tmpMax = uVMatrix * (uMMatrix * vec4(aBBoxMax, 1.0)); ");
+        src.push("  vViewVertex = tmpVertex;");
+        src.push("  gl_Position = uPMatrix * vViewVertex;");
+        src.push("}");
+        return src.join("\n");
+    }
+
+    function composeBBoxFragmentShader() {
+        var src = [
+            "#ifdef GL_ES",
+            "   precision highp float;",
+            "#endif"];
+        src.push("void main(void) {");
+        src.push("    gl_FragColor = vec4(uPickColor.rgb, 1.0);  ");
+        src.push("}");
+        return src.join("\n");
+    }
+
 })();
 /**
  * Manages a stack of WebGL state frames that may be pushed and popped by SceneJS.renderer nodes.
@@ -11240,7 +11644,7 @@ SceneJS._rendererModule = new (function() {
                     enableBlend: false,
                     blendFunc: {
                         sfactor: "srcAlpha",
-                        dfactor: "less"
+                        dfactor: "one"
                     }
                 });
 
@@ -11374,18 +11778,21 @@ SceneJS._rendererModule = new (function() {
      */
     var glEnum = function(context, name) {
         if (!name) {
-            throw SceneJS._errorModule.fatalError(new SceneJS.errors.InvalidNodeConfigException(
-                    "Null SceneJS.renderer node config: \"" + name + "\""));
+            throw SceneJS._errorModule.fatalError(
+                     SceneJS.errors.ILLEGAL_NODE_CONFIG,
+                    "Null SceneJS.renderer node config: \"" + name + "\"");
         }
         var result = SceneJS._webgl_enumMap[name];
         if (!result) {
-            throw SceneJS._errorModule.fatalError(new SceneJS.errors.InvalidNodeConfigException(
-                    "Unrecognised SceneJS.renderer node config value: \"" + name + "\""));
+            throw SceneJS._errorModule.fatalError(
+                     SceneJS.errors.ILLEGAL_NODE_CONFIG,
+                    "Unrecognised SceneJS.renderer node config value: \"" + name + "\"");
         }
         var value = context[result];
         if (!value) {
-            throw SceneJS._errorModule.fatalError(new SceneJS.errors.WebGLUnsupportedNodeConfigException(
-                    "This browser's WebGL does not support renderer node config value: \"" + name + "\""));
+            throw SceneJS._errorModule.fatalError(
+                     SceneJS.errors.ILLEGAL_NODE_CONFIG,
+                    "This browser's WebGL does not support renderer node config value: \"" + name + "\"");
         }
         return value;
     };
@@ -11462,10 +11869,10 @@ SceneJS._rendererModule = new (function() {
                 funcs = funcs || {};
                 return  {
                     sfactor : funcs.sfactor || "srcAlpha",
-                    dfactor : funcs.dfactor || "less"
+                    dfactor : funcs.dfactor || "oneMinusSrcAlpha"
                 };
             }
-            context.blendFunc(glEnum(context, funcs.sfactor || "one"), glEnum(context, funcs.dfactor || "zero"));
+            context.blendFunc(glEnum(context, funcs.sfactor || "srcAlpha"), glEnum(context, funcs.dfactor || "oneMinusSrcAlpha"));
         },
 
         blendFuncSeparate: function(context, func) {
@@ -11533,7 +11940,6 @@ SceneJS._rendererModule = new (function() {
             if (flag) {
                 context.enable(context.CULL_FACE);
             } else {
-                flag = false;
                 context.disable(context.CULL_FACE);
             }
         },
@@ -11636,8 +12042,8 @@ SceneJS._rendererModule = new (function() {
                 return {
                     x : v.x || 1,
                     y : v.y || 1,
-                    width: v.width || canvas.width,
-                    height: v.height || canvas.height
+                    width: v.width || canvas.canvas.width,
+                    height: v.height || canvas.canvas.height
                 };
             }
             context.viewport(v.x, v.y, v.width, v.height);
@@ -11827,7 +12233,7 @@ SceneJS.Renderer.prototype.getBlendEquationSeparate = function() {
 SceneJS.Renderer.prototype.setBlendFunc = function(funcs) {
     this._attr.blendFunc = funcs ? {
         sfactor : funcs.sfactor || "srcAlpha",
-        dfactor : funcs.dfactor || "less"
+        dfactor : funcs.dfactor || "one"
     } : undefined;
     this._memoLevel = 0;
 };
@@ -12056,14 +12462,19 @@ SceneJS._flagsModule = new (function() {
     var stackLen = 0;
     var dirty;
 
+    /* These flags are inherited, where not overidden, by all flags in a scene, in order to support
+     * flag reading on randomly-accessed nodes. For example, this allows the renderer to check if
+     * "picking" is set for some random node, without having to know if the flag is set on higher nodes.  
+     */
     var DEFAULT_FLAGS = {
-        fog: true,          // Fog enabled
-        colortrans : true,  // Effect of colortrans enabled
-        picking : true,     // Picking enabled
-        clipping : true,    // User-defined clipping enabled
-        enabled : true,     // Node not culled from traversal
-        visible : true,     // Node visible - when false, everything happens except geometry draw
-        transparent: false
+        fog: true,              // Fog enabled
+        colortrans : true,      // Effect of colortrans enabled
+        picking : true,         // Picking enabled
+        clipping : true,        // User-defined clipping enabled
+        enabled : true,         // Node not culled from traversal
+        visible : true,         // Node visible - when false, everything happens except geometry draw
+        transparent: false,     // Node transparent - works in conjunction with matarial alpha properties
+        backfaces: true
     };
 
     this.flags = {}; // Flags at top of flag stack
@@ -12089,6 +12500,31 @@ SceneJS._flagsModule = new (function() {
         }
         return newFlags;
     }
+
+    /**
+     * Maps renderer node properties to WebGL context enums
+     * @private
+     */
+    var glEnum = function(context, name) {
+        if (!name) {
+            throw SceneJS._errorModule.fatalError(
+                    SceneJS.errors.ILLEGAL_NODE_CONFIG,
+                    "Null SceneJS.renderer node config: \"" + name + "\"");
+        }
+        var result = SceneJS._webgl_enumMap[name];
+        if (!result) {
+            throw SceneJS._errorModule.fatalError(
+                    SceneJS.errors.ILLEGAL_NODE_CONFIG,
+                    "Unrecognised SceneJS.renderer node config value: \"" + name + "\"");
+        }
+        var value = context[result];
+        if (!value) {
+            throw SceneJS._errorModule.fatalError(
+                    SceneJS.errors.ILLEGAL_NODE_CONFIG,
+                    "This browser's WebGL does not support renderer node config value: \"" + name + "\"");
+        }
+        return value;
+    };
 
     /* Make fresh flag stack for new render pass, containing default flags
      * to enable/disable various things for subgraph
@@ -12119,7 +12555,7 @@ SceneJS._flagsModule = new (function() {
 
     this.preVisitNode = function(node) {
         var attr = node._attr;
-       if (attr.flags) {            
+        if (attr.flags) {
             this.flags = createFlags(attr.flags);
             idStack[stackLen] = attr.id;
             flagStack[stackLen] = this.flags;
@@ -12137,53 +12573,6 @@ SceneJS._flagsModule = new (function() {
     };
 })();
 
-/**
- * @class A scene node that enables/diables features for nodes in its sub graph.
- * An important point to note about these is that they never cause SceneJS to generate
- * or switch shaders - flags are designed to quickly switch things on/of with minimal overhead.
- */
-SceneJS.Flags = SceneJS.createNodeType("flags");
-
-// @private
-SceneJS.Flags.prototype._init = function(params) {
-    this.setFlags(params.flags);
-};
-
-/**
- Sets the flags.
- @param {{String:Boolean}} flags Map of flag booleans
- @since Version 0.8
- */
-SceneJS.Flags.prototype.setFlags = function(flags) {
-    this._attr.flags = SceneJS._shallowClone(flags);
-};
-
-/**
- Returns the flags
- @param {{String:Boolean}} Map of flag booleans
- @since Version 0.8
- */
-SceneJS.Flags.prototype.getFlags = function() {
-    return SceneJS._shallowClone(this._attr.flags);
-};
-
-// @private
-SceneJS.Flags.prototype._compile = function(traversalContext) {
-    this._preCompile(traversalContext);
-    this._compileNodes(traversalContext);
-    this._postCompile(traversalContext);
-};
-
-
-SceneJS.Flags.prototype._preCompile = function(traversalContext) {
-  //  SceneJS._flagsModule.pushFlags(this._attr.id, this._attr.flags);
-};
-
-
-
-SceneJS.Flags.prototype._postCompile = function(traversalContext) {
-  //  SceneJS._flagsModule.popFlags();
-};
 /**
  * Backend that tracks statistics on loading states of nodes during scene traversal.
  *
@@ -12353,6 +12742,9 @@ SceneJS._geometryModule = new (function() {
             if (geo.uvBuf2) {
                 geo.uvBuf2.destroy();
             }
+            if (geo.colorBuf) {
+                geo.colorBuf.destroy();
+            }
         }
         var geoMap = geoMaps[geo.canvas.canvasId];
         if (geoMap) {
@@ -12381,29 +12773,38 @@ SceneJS._geometryModule = new (function() {
             case "triangle-fan":
                 return context.TRIANGLE_FAN;
             default:
-                throw SceneJS._errorModule.fatalError(new SceneJS.errors.InvalidNodeConfigException(// Logs and throws
+                throw SceneJS._errorModule.fatalError(
+                        SceneJS.errors.ILLEGAL_NODE_CONFIG,
                         "SceneJS.geometry primitive unsupported: '" +
                         primitive +
                         "' - supported types are: 'points', 'lines', 'line-loop', " +
-                        "'line-strip', 'triangles', 'triangle-strip' and 'triangle-fan'"));
+                        "'line-strip', 'triangles', 'triangle-strip' and 'triangle-fan'");
         }
     }
 
     this.createGeometry = function(resource, source, callback) {
+
         if (!resource) {
             resource = SceneJS._createKeyForMap(currentGeoMap, "t");
         }
-        
+
         if (typeof source == "string") {
+
+            /* Load from stream
+             */
             var geoService = SceneJS.Services.getService(SceneJS.Services.GEO_LOADER_SERVICE_ID);
             var self = this;
 
-            // http://scenejs.wikispaces.com/GeoLoaderService
+            /* http://scenejs.wikispaces.com/GeoLoaderService
+             */
             geoService.loadGeometry(source,
                     function(data) {
                         callback(self._createGeometry(resource, data));
                     });
         } else {
+
+            /* Arrays specified
+             */
             var data = createTypedArrays(source);
             data.primitive = source.primitive;
             return this._createGeometry(resource, data);
@@ -12416,18 +12817,17 @@ SceneJS._geometryModule = new (function() {
             normals: data.normals ? new Float32Array(data.normals) : undefined,
             uv: data.uv ? new Float32Array(data.uv) : undefined,
             uv2: data.uv2 ? new Float32Array(data.uv2) : undefined,
+            colors: data.colors ? new Float32Array(data.colors) : undefined,
             indices: data.indices ? new Int32Array(data.indices) : undefined
         };
     }
 
     this._createGeometry = function(resource, data) {
 
-        //   SceneJS._loggingModule.debug("Creating geometry: '" + resource + "'");
-
         if (!data.primitive) { // "points", "lines", "line-loop", "line-strip", "triangles", "triangle-strip" or "triangle-fan"
             throw SceneJS._errorModule.fatalError(
-                    new SceneJS.errors.NodeConfigExpectedException(
-                            "SceneJS.geometry node property expected : primitive"));
+                    SceneJS.errors.NODE_CONFIG_EXPECTED, 
+                    "SceneJS.geometry node property expected : primitive");
         }
         var context = canvas.context;
         var usage = context.STATIC_DRAW;
@@ -12437,6 +12837,7 @@ SceneJS._geometryModule = new (function() {
         var normalBuf;
         var uvBuf;
         var uvBuf2;
+        var colorBuf;
         var indexBuf;
 
         try { // TODO: Modify usage flags in accordance with how often geometry is evicted
@@ -12461,6 +12862,12 @@ SceneJS._geometryModule = new (function() {
                 }
             }
 
+            if (data.colors && data.colors.length > 0) {
+                if (data.colors) {
+                    colorBuf = new SceneJS._webgl_ArrayBuffer(context, context.ARRAY_BUFFER, data.colors, data.colors.length, 4, usage);
+                }
+            }
+
             var primitive;
             if (data.indices && data.indices.length > 0) {
                 primitive = getPrimitiveType(context, data.primitive);
@@ -12479,8 +12886,13 @@ SceneJS._geometryModule = new (function() {
                 indexBuf : indexBuf,
                 uvBuf: uvBuf,
                 uvBuf2: uvBuf2,
+                colorBuf: colorBuf,
                 arrays: data          // Retain the arrays for geometric ops
             };
+
+            if (data.positions) {
+                // geo.boundary = getBoundary(data.positions);
+            }
 
             currentGeoMap[resource] = geo;
 
@@ -12499,6 +12911,9 @@ SceneJS._geometryModule = new (function() {
             }
             if (uvBuf2) {
                 uvBuf2.destroy();
+            }
+            if (colorBuf) {
+                colorBuf.destroy();
             }
             if (indexBuf) {
                 indexBuf.destroy();
@@ -12536,20 +12951,62 @@ SceneJS._geometryModule = new (function() {
         geoStack[stackLen++] = geo;
     };
 
+    function getBoundary(positions) {
+        var boundary = {
+            xmin : SceneJS._math_MAX_DOUBLE,
+            ymin : SceneJS._math_MAX_DOUBLE,
+            zmin : SceneJS._math_MAX_DOUBLE,
+            xmax : SceneJS._math_MIN_DOUBLE,
+            ymax : SceneJS._math_MIN_DOUBLE,
+            zmax : SceneJS._math_MIN_DOUBLE
+        };
+        var x, y, z;
+        for (var i = 0, len = positions.length - 2; i < len; i += 3) {
+            x = positions[i];
+            y = positions[i + 1];
+            z = positions[i + 2];
+
+            if (x < boundary.xmin) {
+                boundary.xmin = x;
+            }
+            if (y < boundary.ymin) {
+                boundary.ymin = y;
+            }
+            if (z < boundary.zmin) {
+                boundary.zmin = z;
+            }
+
+            if (x > boundary.xmax) {
+                boundary.xmax = x;
+            }
+            if (y > boundary.ymax) {
+                boundary.ymax = y;
+            }
+            if (z > boundary.zmax) {
+                boundary.zmax = z;
+            }
+        }
+        return boundary;
+    }
+
     function inheritVertices(geo) {
         var geo2 = {
             primitive: geo.primitive,
+            boundary: geo.boundary,
             normalBuf: geo.normalBuf,
             uvBuf: geo.uvBuf,
             uvBuf2: geo.uvBuf2,
+            colorBuf: geo.colorBuf,
             indexBuf: geo.indexBuf
         };
         for (var i = stackLen - 1; i >= 0; i--) {
             if (geoStack[i].vertexBuf) {
                 geo2.vertexBuf = geoStack[i].vertexBuf;
+                geo2.boundary = geoStack[i].boundary;
                 geo2.normalBuf = geoStack[i].normalBuf;
                 geo2.uvBuf = geoStack[i].uvBuf;           // Vertex and UVs are a package
                 geo2.uvBuf2 = geoStack[i].uvBuf2;
+                geo2.colorBuf = geoStack[i].colorBuf;
                 return geo2;
             }
         }
@@ -12625,6 +13082,20 @@ SceneJS._geometryModule = new (function() {
  *
  *        uv2 : [
  *
+ *        ],
+ *
+ *        // Optional colours for vertices
+ *
+ *        colors : [
+ *
+ *            // Vertices 0,1,2,3
+ *
+ *            1.0, 0.0, 0.0, 1.0,
+ *            0.0, 1.0, 0.0, 1.0,
+ *            0.0, 0.0, 1.0, 1.0,
+ *            1.0, 1.0, 1.0  1.0,
+ *
+ *            // ...
  *        ],
  *
  *        // Mandatory indices - these organise the positions, normals and uv texture coordinates into geometric
@@ -12730,6 +13201,13 @@ SceneJS.Geometry.prototype._changeState = function(newState, params) {
     }
 };
 
+/** Returns this Geometry's stream ID, if any
+ * @return {String} ID of stream
+ */
+SceneJS.Geometry.prototype.getStream = function() {
+    return this._stream;
+};
+
 /** Returns this Geometry's positions array
  * @return {[Number]} Flat array of position elements
  */
@@ -12785,8 +13263,9 @@ SceneJS.Geometry.prototype._getArrays = function() {
         return this._attr;
     } else {
         if (!this._handle) {
-            throw SceneJS._errorModule.fatalError(new SceneJS.errors.Exception(
-                    "Invalid node state exception: geometry stream not loaded yet - can't get boundary yet"));
+            throw SceneJS._errorModule.fatalError(
+                    SceneJS.errors.NODE_ILLEGAL_STATE,
+                    "Invalid node state exception: geometry stream not loaded yet - can't get boundary yet");
         }
         return this._handle.arrays;
     }
@@ -12805,16 +13284,16 @@ SceneJS.Geometry.prototype.getBoundary = function() {
     var positions = this._getArrays().positions;
 
     this._boundary = {
-        xmin : Number.MAX_VALUE,
-        ymin : Number.MAX_VALUE,
-        zmin : Number.MAX_VALUE,
-        xmax : Number.MIN_VALUE,
-        ymax : Number.MIN_VALUE,
-        zmax : Number.MIN_VALUE
+        xmin : SceneJS._math_MAX_DOUBLE,
+        ymin : SceneJS._math_MAX_DOUBLE,
+        zmin : SceneJS._math_MAX_DOUBLE,
+        xmax : SceneJS._math_MIN_DOUBLE,
+        ymax : SceneJS._math_MIN_DOUBLE,
+        zmax : SceneJS._math_MIN_DOUBLE
     };
 
     var x, y, z;
-    for (var i = 0, len = positions.length - 3; i < len; i += 3) {
+    for (var i = 0, len = positions.length - 2; i < len; i += 3) {
         x = positions[i];
         y = positions[i + 1];
         z = positions[i + 2];
@@ -12900,6 +13379,9 @@ SceneJS.Geometry.prototype._preCompile = function(traversalContext) {
         }
     }
     if (this._handle) {
+
+        /* Apply geometry
+         */
         SceneJS._geometryModule.pushGeometry(this._attr.id, this._handle.resource);
     }
 };
@@ -18719,7 +19201,7 @@ SceneJS.Teapot = function() {
             var result = [];
             for (var i = 0; i < ar.length; i++) {
                 if (numPerElement && ar[i].length != numPerElement)
-                    throw new SceneJS.errors.InvalidNodeConfigException("Bad geometry array element");
+                    throw "Bad geometry array element";
                 for (var j = 0; j < ar[i].length; j++)
                     result.push(ar[i][j]);
             }
@@ -18949,28 +19431,48 @@ SceneJS.Sphere = SceneJS.createNodeType("sphere", "geometry");
 SceneJS.Sphere.prototype._init = function(params) {
     var slices = params.slices || 30;
     var rings = params.rings || 30;
-	var radius = params.radius || 1;
+    var radius = params.radius || 1;
+
+    var semiMajorAxis =  params.semiMajorAxis || 1;
+    var semiMinorAxis =  1 / semiMajorAxis;
+
+    var sweep = params.sweep || 1;
+    if (sweep > 1) {
+        sweep = 1
+    }
+
+    var sliceDepth = params.sliceDepth || 1;
+    if (sliceDepth > 1) {
+        sliceDepth = 1
+    }
+
+    var ringLimit = rings * sweep;
+    var sliceLimit = slices * sliceDepth;
 
     /* Resource ID ensures that we reuse any sphere that has already been created with
      * these parameters instead of wasting memory
      */
-    this._resource = "sphere_" + radius + "_" + rings + "_" + slices;
+    this._resource = "sphere_" + radius + "_" + rings + "_" + slices + "_" + semiMajorAxis + "_" + sweep + "_" + sliceDepth;
 
-    /* Callback that does the creation in case we can't find matching sphere to reuse     
+    /* Callback that does the creation in case we can't find matching sphere to reuse
      */
     this._create = function() {
         var positions = [];
         var normals = [];
         var uv = [];
-        for (var sliceNum = 0; sliceNum <= slices; sliceNum++) {
+        var ringNum, sliceNum, index;
+
+        for (sliceNum = 0; sliceNum <= slices; sliceNum++) {
+            if (sliceNum > sliceLimit) break;
             var theta = sliceNum * Math.PI / slices;
             var sinTheta = Math.sin(theta);
             var cosTheta = Math.cos(theta);
 
-            for (var ringNum = 0; ringNum <= rings; ringNum++) {
+            for (ringNum = 0; ringNum <= rings; ringNum++) {
+                if (ringNum > ringLimit) break;
                 var phi = ringNum * 2 * Math.PI / rings;
-                var sinPhi = Math.sin(phi);
-                var cosPhi = Math.cos(phi);
+                var sinPhi = semiMinorAxis * Math.sin(phi);
+                var cosPhi = semiMajorAxis * Math.cos(phi);
 
                 var x = cosPhi * sinTheta;
                 var y = cosTheta;
@@ -18989,11 +19491,30 @@ SceneJS.Sphere.prototype._init = function(params) {
             }
         }
 
+        // create a center point which is only used when sweep or sliceDepth are less than one
+        if (sliceDepth < 1) {
+            var yPos = Math.cos((sliceNum - 1) * Math.PI / slices) * radius;
+            positions.push(0, yPos, 0);
+            normals.push(1, 1, 1);
+            uv.push(1, 1);
+        } else {
+            positions.push(0, 0, 0);
+            normals.push(1, 1, 1);
+            uv.push(1, 1);
+        }
+
+        // index of the center position point in the positions array
+        // var centerIndex = (ringLimit + 1) *  (sliceLimit);
+        var centerIndex = positions.length / 3 - 1;
+
         var indices = [];
-        for (var sliceNum = 0; sliceNum < slices; sliceNum++) {
-            for (var ringNum = 0; ringNum < rings; ringNum++) {
-                var first = (sliceNum * (rings + 1)) + ringNum;
-                var second = first + rings + 1;
+
+        for (sliceNum = 0; sliceNum < slices; sliceNum++) {
+            if (sliceNum >= sliceLimit) break;
+            for (ringNum = 0; ringNum < rings; ringNum++) {
+                if (ringNum >= ringLimit) break;
+                var first = (sliceNum * (ringLimit + 1)) + ringNum;
+                var second = first + ringLimit + 1;
                 indices.push(first);
                 indices.push(second);
                 indices.push(first + 1);
@@ -19002,7 +19523,24 @@ SceneJS.Sphere.prototype._init = function(params) {
                 indices.push(second + 1);
                 indices.push(first + 1);
             }
+            if (rings >= ringLimit) {
+                // We aren't sweeping the whole way around so ...
+                //  indices for a sphere with fours ring-segments when only two are drawn.
+                index = (ringLimit + 1) * sliceNum;
+                //    0,3,15   2,5,15  3,6,15  5,8,15 ...
+                indices.push(index, index + ringLimit + 1, centerIndex);
+                indices.push(index + ringLimit, index + ringLimit * 2 + 1, centerIndex);
+             }
         }
+
+        if (slices > sliceLimit) {
+            // We aren't sweeping from the top all the way to the bottom so ...
+            for (ringNum = 1; ringNum <= ringLimit; ringNum++) {
+                index = sliceNum * ringLimit + ringNum;
+                indices.push(index, index + 1, centerIndex);
+            }
+            indices.push(index + 1, sliceNum * ringLimit + 1, centerIndex);
+         }
 
         return {
             primitive : "triangles",
@@ -19013,7 +19551,6 @@ SceneJS.Sphere.prototype._init = function(params) {
         };
     };
 };
-
 SceneJS._namespace("SceneJS.objects");
 
 /**
@@ -19093,6 +19630,208 @@ SceneJS.Quad.prototype._init = function(params) {
             indices : indices,
             colors:[]
         };
+    };
+};
+SceneJS._namespace("SceneJS.objects");
+
+/**
+ * @class A scene node that defines a disk geometry.
+ * <p>The geometry is complete with normals for shading and one layer of UV coordinates for
+ * texture-mapping. It can also be configured as solid (default), to construct it from
+ * triangles with normals for shading and one layer of UV coordinates for texture-mapping
+ * When not solid, it will be a wireframe drawn as line segments.</p>
+ * <p><b>Example Usage</b></p><p>Definition of solid disk that extends 6 units radially from the Y-axis,
+ * is elliptical in shape with a normalized semiMajorAxis of 1.5, is 2 units high in the Y-axis and
+ * is made up of 48 longitudinal rings:</b></p><pre><code>
+ * var c = new SceneJS.Disk({
+ *          radius: 6,          // Optional radius (1 is default)
+ *          inner_radius: 3     // Optional inner_radius results in ring (default is 0)
+ *          semiMajorAxis: 1.5  // Optional semiMajorAxis results in ellipse (default is 1 which is a circle)
+ *          height: 2,          // Optional height (1 is default)
+ *          rings: 48           // Optional number of longitudinal rings (30 is default)
+ *     })
+ * </pre></code>
+ * @extends SceneJS.Geometry
+ * @since Version 0.7.9
+ * @constructor
+ * Create a new SceneJS.Disk
+ * @param {Object} [cfg] Static configuration object
+ * @param {float} [cfg.radius=1.0] radius extending from Y-axis
+ * @param {float} [cfg.inner_radius=0] inner radius extending from Y-axis
+ * @param {float} [cfg.inner_radius=0] inner radius extending from Y-axis
+ * @param {float} [cfg.semiMajorAxis=1.0] values other than one generate an ellipse
+ * @param {float} [cfg.rings=30]  number of longitudinal rings
+ * @param {...SceneJS.Node} [childNodes] Child nodes
+ */
+SceneJS.Disk = SceneJS.createNodeType("disk", "geometry");
+
+// @private
+SceneJS.Disk.prototype._init = function(params) {
+    this._attr.nodeType = "disk";
+
+    var radius = params.radius || 1;
+    var height = params.height || 1;
+    var rings =  params.rings || 30;
+    var inner_radius = params.inner_radius || 0;
+    if (inner_radius > radius) {
+        inner_radius = radius
+    }
+
+    var semiMajorAxis =  params.semiMajorAxis || 1;
+    var semiMinorAxis =  1 / semiMajorAxis;
+
+    /* Resource ID ensures that we reuse any sphere that has already been created with
+     * these parameters instead of wasting memory
+     */
+    this._resource = "disk_" + radius + "_" + height + "_" + rings + "_" + inner_radius;
+
+    /* Callback that does the creation in case we can't find matching disk to reuse
+     */
+     this._create = function() {
+         var positions = [];
+         var normals = [];
+         var uv = [];
+
+         var ybot = height * -0.5;
+         var ytop = height *  0.5;
+
+         for (var ringNum = 0; ringNum <= rings; ringNum++) {
+             var phi = ringNum * 2 * Math.PI / rings;
+             var sinPhi = semiMinorAxis * Math.sin(phi);
+             var cosPhi = semiMajorAxis * Math.cos(phi);
+
+             var x = cosPhi;
+             var z = sinPhi;
+             var u = 1 - (ringNum / rings);
+             var v = 0.5;
+
+             normals.push(-x);
+             normals.push(-ybot);
+             normals.push(-z);
+             uv.push(u);
+             uv.push(v);
+             positions.push(radius * x);
+             positions.push(ybot);
+             positions.push(radius * z);
+
+             normals.push(-x);
+             normals.push(-ytop);
+             normals.push(-z);
+             uv.push(u);
+             uv.push(v);
+             positions.push(radius * x);
+             positions.push(ytop);
+             positions.push(radius * z);
+
+             if (inner_radius > 0) {
+
+                 normals.push(-x);
+                 normals.push(-ytop);
+                 normals.push(-z);
+                 uv.push(u);
+                 uv.push(v);
+                 positions.push(inner_radius * x);
+                 positions.push(ytop);
+                 positions.push(inner_radius * z);
+
+                 normals.push(-x);
+                 normals.push(-ybot);
+                 normals.push(-z);
+                 uv.push(u);
+                 uv.push(v);
+                 positions.push(inner_radius * x);
+                 positions.push(ybot);
+                 positions.push(inner_radius * z);
+            }
+
+         }
+
+         var indices = [];
+
+         if (inner_radius > 0) {
+
+             for (var ringNum = 0; ringNum < rings; ringNum++) {
+                 var index = ringNum * 4;
+
+                 indices.push(index + 0);
+                 indices.push(index + 1);
+                 indices.push(index + 4);
+
+                 indices.push(index + 1);
+                 indices.push(index + 4);
+                 indices.push(index + 5);
+
+                 indices.push(index + 1);
+                 indices.push(index + 2);
+                 indices.push(index + 5);
+
+                 indices.push(index + 2);
+                 indices.push(index + 5);
+                 indices.push(index + 6);
+
+                 indices.push(index + 2);
+                 indices.push(index + 3);
+                 indices.push(index + 6);
+
+                 indices.push(index + 3);
+                 indices.push(index + 6);
+                 indices.push(index + 7);
+
+                 indices.push(index + 3);
+                 indices.push(index + 0);
+                 indices.push(index + 7);
+
+                 indices.push(index + 0);
+                 indices.push(index + 7);
+                 indices.push(index + 4);
+             }
+
+         } else {
+
+             var centerBot = rings * 2 + 2;
+
+             normals.push(0, -1.0, 0);
+             uv.push(1, 0.5);
+             positions.push(0, ybot, 0);
+
+             var centerTop = rings * 2 + 3;
+
+             normals.push(0, 1.0, 0);
+             uv.push(1, 0.5);
+             positions.push(0, ytop, 0);
+
+             for (var ringNum = 0; ringNum < rings; ringNum++) {
+                 var index = ringNum * 2;
+                 indices.push(index);
+                 indices.push(index + 1);
+                 indices.push(index + 2);
+
+                 indices.push(index + 1);
+                 indices.push(index + 2);
+                 indices.push(index + 3);
+             }
+
+             for (var ringNum = 0; ringNum < rings; ringNum++) {
+                 var index = ringNum * 2;
+                 indices.push(index);
+                 indices.push(index + 2);
+                 indices.push(centerBot);
+
+                 indices.push(index + 1);
+                 indices.push(index + 3);
+                 indices.push(centerTop);
+             }
+
+         }
+
+
+         return {
+             primitive : "triangles",
+             positions : positions,
+             normals: normals,
+             uv : uv,
+             indices : indices
+         };
     };
 };
 /** Backend module that creates vector geometry repreentations of text
@@ -20652,8 +21391,9 @@ SceneJS.Text = SceneJS.createNodeType("text");
 SceneJS.Text.prototype._init = function(params) {
     var mode = params.mode || "bitmap";
     if (mode != "vector" && mode != "bitmap") {
-        throw SceneJS._errorModule.fatalError(new SceneJS.errors.InvalidNodeConfigException(
-                "SceneJS.Text unsupported mode - should be 'vector' or 'bitmap'"));
+        throw SceneJS._errorModule.fatalError(
+                 SceneJS.errors.ILLEGAL_NODE_CONFIG,
+                "SceneJS.Text unsupported mode - should be 'vector' or 'bitmap'");
     }
     this._mode = mode;
     if (this._mode == "bitmap") {
@@ -20802,7 +21542,8 @@ SceneJS._viewTransformModule = new (function() {
     var DEFAULT_TRANSFORM = {
         matrix : SceneJS._math_identityMat4(),
         fixed: true,
-        identity : true
+        identity : true,
+        lookAt:SceneJS._math_LOOKAT
     };
 
     var idStack = new Array(255);
@@ -20836,22 +21577,26 @@ SceneJS._viewTransformModule = new (function() {
     SceneJS._eventModule.addListener(
             SceneJS._eventModule.SHADER_RENDERING,
             function() {
-                if (dirty) {
-
-                    /* Lazy-compute WebGL matrices
-                     */
-                    if (!transform.matrixAsArray) {
-                        transform.matrixAsArray = new Float32Array(transform.matrix);
-                    }
-                    if (!transform.normalMatrixAsArray) {
-                        transform.normalMatrixAsArray = new Float32Array(
-                                SceneJS._math_transposeMat4(
-                                        SceneJS._math_inverseMat4(transform.matrix, SceneJS._math_mat4())));
-                    }
-                    SceneJS._renderModule.setViewTransform(nodeId, transform.matrixAsArray, transform.normalMatrixAsArray);
-                    dirty = false;
-                }
+                loadTransform();
             });
+
+    function loadTransform() {
+        if (dirty) {
+
+            /* Lazy-compute WebGL matrices
+             */
+            if (!transform.matrixAsArray) {
+                transform.matrixAsArray = new Float32Array(transform.matrix);
+            }
+            if (!transform.normalMatrixAsArray) {
+                transform.normalMatrixAsArray = new Float32Array(
+                        SceneJS._math_transposeMat4(
+                                SceneJS._math_inverseMat4(transform.matrix, SceneJS._math_mat4())));
+            }
+            SceneJS._renderModule.setViewTransform(nodeId, transform.matrixAsArray, transform.normalMatrixAsArray, transform.lookAt);
+            dirty = false;
+        }
+    }
 
     SceneJS._eventModule.addListener(
             SceneJS._eventModule.SHADER_DEACTIVATED,
@@ -20867,6 +21612,7 @@ SceneJS._viewTransformModule = new (function() {
         transform = t;
         dirty = true;
         SceneJS._eventModule.fireEvent(SceneJS._eventModule.VIEW_TRANSFORM_UPDATED, transform);
+       loadTransform();
     };
 
     this.getTransform = function() {
@@ -20882,7 +21628,8 @@ SceneJS._viewTransformModule = new (function() {
             nodeId = null;
             transform = DEFAULT_TRANSFORM;
         }
-         SceneJS._eventModule.fireEvent(SceneJS._eventModule.VIEW_TRANSFORM_UPDATED, transform);
+        SceneJS._eventModule.fireEvent(SceneJS._eventModule.VIEW_TRANSFORM_UPDATED, transform);
+        loadTransform();
         dirty = true;
     };
 
@@ -20943,25 +21690,25 @@ SceneJS._modelTransformModule = new (function() {
                 dirty = true;
             });
 
-    SceneJS._eventModule.addListener(
-            SceneJS._eventModule.SHADER_RENDERING,
-            function() {
-                if (dirty) {
+    SceneJS._eventModule.addListener(SceneJS._eventModule.SHADER_RENDERING, exportTransform);
 
-                    /* Lazy-create WebGL arrays
-                     */
-                    if (!transform.matrixAsArray) {
-                        transform.matrixAsArray = new Float32Array(transform.matrix);
-                    }
-                    if (!transform.normalMatrixAsArray) {
-                        transform.normalMatrixAsArray = new Float32Array(
-                                SceneJS._math_transposeMat4(
-                                        SceneJS._math_inverseMat4(transform.matrix, SceneJS._math_mat4())));
-                    }
-                    SceneJS._renderModule.setModelTransform(nodeId, transform.matrixAsArray, transform.normalMatrixAsArray);
-                    dirty = false;
-                }
-            });
+    function exportTransform() {
+        if (dirty) {
+
+            /* Lazy-create WebGL arrays
+             */
+            if (!transform.matrixAsArray) {
+                transform.matrixAsArray = new Float32Array(transform.matrix);
+            }
+            if (!transform.normalMatrixAsArray) {
+                transform.normalMatrixAsArray = new Float32Array(
+                        SceneJS._math_transposeMat4(
+                                SceneJS._math_inverseMat4(transform.matrix, SceneJS._math_mat4())));
+            }
+            SceneJS._renderModule.setModelTransform(nodeId, transform.matrixAsArray, transform.normalMatrixAsArray);
+            dirty = false;
+        }
+    }
 
     SceneJS._eventModule.addListener(
             SceneJS._eventModule.SHADER_DEACTIVATED,
@@ -20992,8 +21739,8 @@ SceneJS._modelTransformModule = new (function() {
             nodeId = null;
             transform = DEFAULT_TRANSFORM;
         }
-        SceneJS._eventModule.fireEvent(SceneJS._eventModule.MODEL_TRANSFORM_UPDATED, transform);
         dirty = true;
+        SceneJS._eventModule.fireEvent(SceneJS._eventModule.MODEL_TRANSFORM_UPDATED, transform);        
     };
 
 })();
@@ -21314,14 +22061,14 @@ SceneJS.Translate = SceneJS.createNodeType("translate");
 SceneJS.Translate.prototype._init = function(params) {
     this._mat = null;
     this._xform = null;
-    this.setXYZ({x : params.x, y: params.y, z: params.z });
+    this.setXyz({x : params.x, y: params.y, z: params.z });
 };
 
 /**
  * Sets the translation vector
  * @param {object} xyz The vector - eg. {x: 0, y: 1, z: 0}
  */
-SceneJS.Translate.prototype.setXYZ = function(xyz) {
+SceneJS.Translate.prototype.setXyz = function(xyz) {
     xyz = xyz || {};
     var x = xyz.x || 0;
     var y = xyz.y || 0;
@@ -21335,7 +22082,7 @@ SceneJS.Translate.prototype.setXYZ = function(xyz) {
 /** Returns the translation vector
  * @returns {Object} the vector, eg. {x: 0, y: 1, z: 0}
  */
-SceneJS.Translate.prototype.getXYZ = function() {
+SceneJS.Translate.prototype.getXyz = function() {
     return {
         x: this._attr.x,
         y: this._attr.y,
@@ -21714,10 +22461,14 @@ SceneJS.Matrix.prototype._init = function(params) {
 SceneJS.Matrix.prototype.setElements = function(elements) {
     elements = elements || SceneJS._math_identityMat4();
     if (!elements) {
-        throw SceneJS._errorModule.fatalError(new SceneJS.errors.InvalidNodeConfigException("SceneJS.Matrix elements undefined"));
+        throw SceneJS._errorModule.fatalError(
+                 SceneJS.errors.ILLEGAL_NODE_CONFIG,
+                "Matrix elements undefined");
     }
     if (elements.length != 16) {
-        throw SceneJS._errorModule.fatalError(new SceneJS.errors.InvalidNodeConfigException("SceneJS.Matrix elements should number 16"));
+        throw SceneJS._errorModule.fatalError(
+                 SceneJS.errors.ILLEGAL_NODE_CONFIG,
+                "Matrix elements should number 16");
     }
     for (var i = 0; i < 16; i++) {
         this._mat[i] = elements[i];
@@ -22207,8 +22958,8 @@ SceneJS.LookAt.prototype.setUp = function(up) {
     var z = (up.z != undefined && up.z != null) ? up.z : 0;
     if (x + y + z == 0) {
         throw SceneJS._errorModule.fatalError(
-                new SceneJS.errors.InvalidNodeConfigException(
-                        "SceneJS.lookAt up vector is zero length - at least one of its x,y and z components must be non-zero"));
+                 SceneJS.errors.ILLEGAL_NODE_CONFIG,
+                        "SceneJS.lookAt up vector is zero length - at least one of its x,y and z components must be non-zero");
     }
     this._upX = x;
     this._upY = y;
@@ -22331,9 +23082,9 @@ SceneJS.LookAt.prototype._preCompile = function(traversalContext) {
             type: "lookat",
             matrix: tempMat,
             lookAt : {
-                eye: { x: this._eyeX, y: this._eyeY, z: this._eyeZ },
-                look: { x: this._lookX, y: this._lookY, z: this._lookZ },
-                up:  { x: this._upX, y: this._upY, z: this._upZ }
+                eye: [this._eyeX, this._eyeY, this._eyeZ ],
+                look: [this._lookX, this._lookY, this._lookZ ],
+                up:  [this._upX, this._upY, this._upZ ]
             },
             fixed: origMemoLevel == 2
         };
@@ -22387,10 +23138,7 @@ SceneJS.Stationary.prototype._compile = function(traversalContext) {
         if (this._memoLevel == 0 || (!superXform.fixed)) {
             var tempMat = SceneJS._math_mat4();
             SceneJS._math_mulMat4(superXform.matrix,
-                        SceneJS._math_translationMat4c(
-                                lookAt.eye.x,
-                                lookAt.eye.y,
-                                lookAt.eye.z), tempMat)
+                    SceneJS._math_translationMat4v(lookAt.eye), tempMat);
             this._xform = {
                 matrix: tempMat,
                 lookAt: lookAt,
@@ -22405,7 +23153,7 @@ SceneJS.Stationary.prototype._compile = function(traversalContext) {
         this._compileNodes(traversalContext);
         SceneJS._viewTransformModule.popTransform();
     } else {
-        this._compileNodes(traversalContext);
+        this._compileNodes(traversalContext);        
     }
 };
 
@@ -22430,18 +23178,19 @@ SceneJS.Billboard = SceneJS.createNodeType("billboard");
 
 // @private
 SceneJS.Billboard.prototype._compile = function(traversalContext) {
-    this._preCompile(traversalContext);
+    this._preCompile();
     this._compileNodes(traversalContext);
-    this._postCompile(traversalContext);
+    this._postCompile();
 };
 
 // @private
 SceneJS.Billboard.prototype._preCompile = function(traversalContext) {
     // 0. The base variable
     var superViewXForm = SceneJS._viewTransformModule.getTransform();
-    var eye = superViewXForm.lookAt.eye;
-    var look = superViewXForm.lookAt.look;
-    var up = superViewXForm.lookAt.up;
+    var lookAt = superViewXForm.lookAt;
+//    var eye = superViewXForm.lookAt.eye;
+//    var look = superViewXForm.lookAt.look;
+//    var up = superViewXForm.lookAt.up;
     var superModelXForm = SceneJS._modelTransformModule.getTransform();
     var matrix = superModelXForm.matrix.slice(0);
 
@@ -22457,12 +23206,12 @@ SceneJS.Billboard.prototype._preCompile = function(traversalContext) {
 
     // 2. Get the billboard Z vector
     var ZZ = [];
-    SceneJS._math_subVec3([eye.x, eye.y, eye.z], [look.x, look.y, look.z], ZZ);
+    SceneJS._math_subVec3(lookAt.eye, lookAt.look, ZZ);
     SceneJS._math_normalizeVec3(ZZ);
 
     // 3. Get the billboard X vector
     var XX = [];
-    SceneJS._math_cross3Vec3([up.x, up.y, up.z], ZZ, XX);
+    SceneJS._math_cross3Vec3(lookAt.up, ZZ, XX);
     SceneJS._math_normalizeVec3(XX);
 
     // 4. Get the billboard Y vector
@@ -22803,14 +23552,14 @@ SceneJS.Camera.prototype.setOptics = function(optics) {
             };
         } else if (!optics.type) {
             throw SceneJS._errorModule.fatalError(
-                    new SceneJS.errors.InvalidNodeConfigException(
+                     SceneJS.errors.ILLEGAL_NODE_CONFIG,
                             "SceneJS.Camera configuration invalid: optics type not specified - " +
-                            "supported types are 'perspective', 'frustum' and 'ortho'"));
+                            "supported types are 'perspective', 'frustum' and 'ortho'");
         } else {
             throw SceneJS._errorModule.fatalError(
-                    new SceneJS.errors.InvalidNodeConfigException(
+                     SceneJS.errors.ILLEGAL_NODE_CONFIG,
                             "SceneJS.Camera configuration invalid: optics type not supported - " +
-                            "supported types are 'perspective', 'frustum' and 'ortho'"));
+                            "supported types are 'perspective', 'frustum' and 'ortho'");
         }
     }
     this._setDirty();
@@ -22996,9 +23745,6 @@ SceneJS.Node.prototype.queryCameraPos = function() {
  *  @private
  */
 SceneJS._lightingModule = new (function() {
-    var viewMat;
-    var modelMat;
-
     var idStack = new Array(255);
     var lightStack = new Array(255);
     var stackLen = 0;
@@ -23007,7 +23753,6 @@ SceneJS._lightingModule = new (function() {
     SceneJS._eventModule.addListener(
             SceneJS._eventModule.SCENE_COMPILING,
             function() {
-                modelMat = viewMat = SceneJS._math_identityMat4();
                 stackLen = 0;
                 dirty = true;
             });
@@ -23016,18 +23761,6 @@ SceneJS._lightingModule = new (function() {
             SceneJS._eventModule.SHADER_ACTIVATED,
             function() {
                 dirty = true;
-            });
-
-    SceneJS._eventModule.addListener(
-            SceneJS._eventModule.VIEW_TRANSFORM_UPDATED,
-            function(params) {
-                viewMat = params.matrix;
-            });
-
-    SceneJS._eventModule.addListener(
-            SceneJS._eventModule.MODEL_TRANSFORM_UPDATED,
-            function(params) {
-                modelMat = params.matrix;
             });
 
     SceneJS._eventModule.addListener(
@@ -23046,20 +23779,17 @@ SceneJS._lightingModule = new (function() {
             });
 
     this.pushLight = function(id, light) {  // TODO: what to do with ID?
-        instanceLight(light);
+        var modelMat = SceneJS._modelTransformModule.getTransform().matrix;        
+        if (light.mode == "point") {
+            light.worldPos = SceneJS._math_transformPoint3(modelMat, light.pos);
+        } else if (light.mode == "dir") {
+            light.worldDir = SceneJS._math_transformVector3(modelMat, light.dir);
+        }
         idStack[stackLen] = id;
         lightStack[stackLen] = light;
         stackLen++;
         dirty = true;
     };
-
-    function instanceLight(light) {
-        if (light.mode == "point") {
-            light.viewPos = SceneJS._math_transformPoint3(viewMat, SceneJS._math_transformPoint3(modelMat, light.pos));
-        } else if (light.mode == "dir") {
-            light.viewDir = SceneJS._math_transformVector3(viewMat, SceneJS._math_transformVector3(modelMat, light.dir));
-        }
-    }
 })();
 
 /**
@@ -23143,8 +23873,9 @@ SceneJS.Light.prototype._init = function(params) {
 SceneJS.Light.prototype.setMode = function(mode) {
     mode = mode || "dir";
     if (mode != "dir" && mode != "point") {
-        throw SceneJS._errorModule.fatalError(new SceneJS.errors.InvalidNodeConfigException(
-                "SceneJS.Light unsupported mode - should be 'dir' or 'point' or 'ambient'"));
+          throw SceneJS._errorModule.fatalError(
+                       SceneJS.errors.ILLEGAL_NODE_CONFIG,
+                                "SceneJS.Light unsupported mode - should be 'dir' or 'point' or 'ambient'");
     }
     this._light.mode = mode;
     return this;
@@ -23567,9 +24298,9 @@ SceneJS.Material.prototype.getHighlightBaseColor = function() {
  */
 SceneJS.Material.prototype.setSpecularColor = function(color) {
     this._attr.specularColor = color ? {
-        r: color.r != undefined && color.r != null ? color.r : 0.5,
-        g: color.g != undefined && color.g != null ? color.g : 0.5,
-        b: color.b != undefined && color.b != null ? color.b : 0.5
+        r: color.r != undefined && color.r != null ? color.r : 0.0,
+        g: color.g != undefined && color.g != null ? color.g : 0.0,
+        b: color.b != undefined && color.b != null ? color.b : 0.0
     } : null;
 };
 
@@ -24054,24 +24785,24 @@ SceneJS.Interpolator.prototype._init = function(params) {
     if (params.keys) {
         if (!params.values) {
             throw SceneJS._errorModule.fatalError(
-                    new SceneJS.errors.InvalidNodeConfigException(
-                            "SceneJS.Interpolator configuration incomplete: " +
-                            "keys supplied but no values - must supply a value for each key"));
+                    SceneJS.errors.ILLEGAL_NODE_CONFIG,
+                    "SceneJS.Interpolator configuration incomplete: " +
+                    "keys supplied but no values - must supply a value for each key");
         }
         for (var i = 1; i < params.keys.length; i++) {
             if (params.keys[i - 1] >= params.keys[i]) {
                 throw SceneJS._errorModule.fatalError(
-                        new SceneJS.errors.InvalidNodeConfigException(
-                                "SceneJS.Interpolator configuration invalid: " +
-                                "two invalid keys found ("
-                                        + (i - 1) + " and " + i + ") - key list should contain distinct values in ascending order"));
+                        SceneJS.errors.ILLEGAL_NODE_CONFIG,
+                        "SceneJS.Interpolator configuration invalid: " +
+                        "two invalid keys found ("
+                                + (i - 1) + " and " + i + ") - key list should contain distinct values in ascending order");
             }
         }
     } else if (params.values) {
         throw SceneJS._errorModule.fatalError(
-                new SceneJS.errors.InvalidNodeConfigException(
-                        "SceneJS.Interpolator configuration incomplete: " +
-                        "values supplied but no keys - must supply a key for each value"));
+                SceneJS.errors.ILLEGAL_NODE_CONFIG,
+                "SceneJS.Interpolator configuration incomplete: " +
+                "values supplied but no keys - must supply a key for each value");
     }
     this._attr.keys = params.keys || [];
     this._attr.values = params.values || [];
@@ -24091,20 +24822,20 @@ SceneJS.Interpolator.prototype._init = function(params) {
         case 'cubic':
             if (params.keys.length < 4) {
                 throw SceneJS._errorModule.fatalError(
-                        new SceneJS.errors.InvalidNodeConfigException(
+                       SceneJS.errors.ILLEGAL_NODE_CONFIG,
                                 "SceneJS.Interpolator configuration invalid: minimum of four keyframes " +
                                 "required for cubic - only "
                                         + params.keys.length
-                                        + " are specified"));
+                                        + " are specified");
             }
             break;
         case 'slerp':
             break;
         default:
             throw SceneJS._errorModule.fatalError(
-                    new SceneJS.errors.InvalidNodeConfigException(
+                    SceneJS.errors.ILLEGAL_NODE_CONFIG,
                             "SceneJS.Interpolator configuration invalid:  mode not supported - " +
-                            "only 'linear', 'cosine', 'cubic', 'constant' and 'slerp' are supported"));
+                            "only 'linear', 'cosine', 'cubic', 'constant' and 'slerp' are supported");
         /*
 
 
@@ -24155,14 +24886,14 @@ SceneJS.Interpolator.prototype._preCompile = function(traversalContext) {
 
     if (!this._attr.target) {
         throw SceneJS._errorModule.fatalError(
-                new SceneJS.errors.NodeConfigExpectedException(
-                        "SceneJS.Interpolator config expected: target"));
+                SceneJS.errors.NODE_CONFIG_EXPECTED,
+                "SceneJS.Interpolator config expected: target");
     }
 
     if (!this._attr.targetProperty) {
         throw SceneJS._errorModule.fatalError(
-                new SceneJS.errors.NodeConfigExpectedException(
-                        "SceneJS.Interpolator config expected: targetProperty"));
+                SceneJS.errors.NODE_CONFIG_EXPECTED,
+                "SceneJS.Interpolator config expected: targetProperty");
     }
 
     /* Generate next value
@@ -24284,8 +25015,9 @@ SceneJS.Interpolator.prototype._interpolate = function(k) {
             return this._slerp(k);
         default:
             throw SceneJS._errorModule.fatalError(
-                    new SceneJS.errors.InternalException("SceneJS.Interpolator internal error - interpolation mode not switched: '"
-                            + this._attr.mode + "'"));
+                    SceneJS.errors.ERROR,
+                    "SceneJS.Interpolator internal error - interpolation mode not switched: '"
+                            + this._attr.mode + "'");
     }
 };
 
@@ -24677,10 +25409,11 @@ SceneJS.BoundingBox.STATE_INTERSECTING_FRUSTUM = "visible";
 
 // @private
 SceneJS.BoundingBox.prototype._changeState = function(newState, params) {
+    var oldState = this._state;
     this._state = newState;
     if (this._listeners["state-changed"]) {
-        params = params || {};
-        params.oldState = this._state;
+        params = params || {};        
+        params.oldState = oldState;
         params.newState = newState;
         this._fireEvent("state-changed", params);
     }
@@ -24867,18 +25600,18 @@ SceneJS.BoundingBox.prototype._compile = function(traversalContext) {
 SceneJS.BoundingBox.prototype._preCompile = function(traversalContext) {
 
     this._compileNodeAtIndex = undefined;
-    this._compileNodes = undefined;
+    this._nodesToCompile = undefined;
 
     if (!this._validated) {
         if (this._levels) {
             if (this._levels.length != this._children.length) {
-                throw SceneJS._errorModule.fatalError(new SceneJS.errors.NodeConfigExpectedException
-                        ("boundingBox levels property should have a value for each child node"));
+                throw SceneJS._errorModule.fatalError(SceneJS.errors.NODE_CONFIG_EXPECTED,
+                        "boundingBox levels property should have a value for each child node");
             }
             for (var i = 1; i < this._levels.length; i++) {
                 if (this._levels[i - 1] >= this._levels[i]) {
-                    throw SceneJS._errorModule.fatalError(new SceneJS.errors.NodeConfigExpectedException
-                            ("boundingBox levels property should be an ascending list of unique values"));
+                    throw SceneJS._errorModule.fatalError(SceneJS.errors.NODE_CONFIG_EXPECTED,
+                            "boundingBox levels property should be an ascending list of unique values");
                 }
             }
         }
@@ -25022,7 +25755,7 @@ SceneJS.BoundingBox.prototype._preCompile = function(traversalContext) {
                                     /* Zero or one child provided for all LOD -
                                      * just render it if there is one
                                      */
-                                    this._compileNodes = true;
+                                    this._nodesToCompile = true;
                                     //this._compileNodes(traversalContext);
                                 }
                                 return;
@@ -25030,7 +25763,7 @@ SceneJS.BoundingBox.prototype._preCompile = function(traversalContext) {
                         }
                     } else {
 
-                        this._compileNodes = true;
+                        this._nodesToCompile = true;
                         //this._compileNodes(traversalContext);
                     }
 
@@ -25056,7 +25789,7 @@ SceneJS.BoundingBox.prototype._preCompile = function(traversalContext) {
 
             // TODO:
 
-            this._compileNodes = true;
+            this._nodesToCompile = true;
             //this._compileNodes(traversalContext);
         }
     } else {
@@ -25073,7 +25806,7 @@ SceneJS.BoundingBox.prototype._compileNodes = function(traversalContext) {
         SceneJS.Node.prototype._compileNodeAtIndex.call(this, this._compileNodeAtIndex, traversalContext);
         SceneJS._boundaryModule.popBoundary();
 
-    } else if (this._compileNodes) { // Visibility cull
+    } else if (this._nodesToCompile) { // Visibility cull
 
         SceneJS.Node.prototype._compileNodes.call(this, traversalContext);
         SceneJS._boundaryModule.popBoundary();
@@ -25537,8 +26270,9 @@ SceneJS._textureModule = new (function() {
         }
         var glName = SceneJS._webgl_enumMap[value];
         if (glName == undefined) {
-            throw SceneJS._errorModule.fatalError(new SceneJS.errors.InvalidNodeConfigException(
-                    "Unrecognised value for SceneJS.texture node property '" + name + "' value: '" + value + "'"));
+            throw SceneJS._errorModule.fatalError(
+                     SceneJS.errors.ILLEGAL_NODE_CONFIG,
+                    "Unrecognised value for SceneJS.texture node property '" + name + "' value: '" + value + "'");
         }
         var glValue = context[glName];
         //                if (!glValue) {
@@ -25609,7 +26343,7 @@ SceneJS._textureModule = new (function() {
             var textureId = allocateTexture(_canvas, _context, cfg.image, cfg);
             onSuccess(textures[textureId]);
         } else {
-            throw SceneJS._errorModule.fatalError("Failed to create texture: neither cfg.image nor cfg.uri supplied");
+            throw "Failed to create texture: neither cfg.image nor cfg.uri supplied";
         }
     };
 
@@ -25642,7 +26376,7 @@ SceneJS._textureModule = new (function() {
                             logging: SceneJS._loggingModule
                         });
                     } catch (e) {
-                        throw SceneJS._errorModule.fatalError("Failed to create texture: " + e);
+                        throw SceneJS._errorModule.fatalError(SceneJS.errors.ERROR, "Failed to create texture: " + e.message || e);
                     }
                 });
         return textureId;
@@ -25872,51 +26606,67 @@ SceneJS.Texture.prototype._init = function(params) {
     this._layers = [];
     this._state = SceneJS.Texture.STATE_INITIAL;
 
-    if (params.layers) {
-        for (var i = 0; i < params.layers.length; i++) {
-            var layerParam = params.layers[i];
-            if (!layerParam.uri && !layerParam.imageBuf) {
-                throw new SceneJS.errors.NodeConfigExpectedException(
-                        "SceneJS.Texture.layers[" + i + "] has no uri or imageBuf specified");
-            }
-            if (layerParam.applyFrom) {
-                if (layerParam.applyFrom != "uv" &&
-                    layerParam.applyFrom != "uv2" &&
-                    layerParam.applyFrom != "normal" &&
-                    layerParam.applyFrom != "geometry") {
-                    throw SceneJS._errorModule.fatalError(
-                            new SceneJS.errors.InvalidNodeConfigException(
-                                    "SceneJS.Texture.layers[" + i + "].applyFrom value is unsupported - " +
-                                    "should be either 'uv', 'uv2', 'normal' or 'geometry'"));
-                }
-            }
-            if (layerParam.applyTo) {
-                if (layerParam.applyTo != "baseColor" && // Colour map
-                    layerParam.applyTo != "specular" && // Specular map
-                    layerParam.applyTo != "emit" && // Emission map
-                    //   layerParam.applyTo != "diffuseColor" &&
-                    layerParam.applyTo != "normals") {
-                    throw SceneJS._errorModule.fatalError(
-                            new SceneJS.errors.InvalidNodeConfigException(
-                                    "SceneJS.Texture.layers[" + i + "].applyTo value is unsupported - " +
-                                    "should be either 'baseColor', 'specular' or 'normals'"));
-                }
-            }
-            this._layers.push({
-                state : SceneJS.TextureLayer.STATE_INITIAL,
-                process: null,                      // Image load process handle
-                image : null,                       // Initialised when state == IMAGE_LOADED
-                creationParams: layerParam,         // Create texture using this
-                texture: null,                      // Initialised when state == TEXTURE_LOADED
-                applyFrom: layerParam.applyFrom || "uv",
-                applyTo: layerParam.applyTo || "baseColor",
-                blendMode: layerParam.blendMode || "add",
-                scale : layerParam.scale,
-                translate : layerParam.translate,
-                rotate : layerParam.rotate,
-                rebuildMatrix : true
-            });
+    /* When set, texture waits for layers to load before compiling children - default is true
+     */
+    this._waitForLoad = (params.waitForLoad === false) ? params.waitForLoad : true;
+
+    if (!params.layers) {
+        throw SceneJS._errorModule.fatalError(
+                SceneJS.errors.NODE_CONFIG_EXPECTED,
+                "texture layers missing");
+    }
+
+    if (!SceneJS._isArray(params.layers)) {
+        throw SceneJS._errorModule.fatalError(
+                SceneJS.errors.NODE_CONFIG_EXPECTED,
+                "texture layers should be an array");
+    }
+
+    for (var i = 0; i < params.layers.length; i++) {
+        var layerParam = params.layers[i];
+        if (!layerParam.uri && !layerParam.imageBuf) {
+            throw SceneJS._errorModule.fatalError(
+                    SceneJS.errors.NODE_CONFIG_EXPECTED,
+                    "SceneJS.Texture.layers[" + i + "] has no uri or imageBuf specified");
         }
+        if (layerParam.applyFrom) {
+            if (layerParam.applyFrom != "uv" &&
+                layerParam.applyFrom != "uv2" &&
+                layerParam.applyFrom != "normal" &&
+                layerParam.applyFrom != "geometry") {
+                throw SceneJS._errorModule.fatalError(
+                        SceneJS.errors.NODE_CONFIG_EXPECTED,
+                        "SceneJS.Texture.layers[" + i + "].applyFrom value is unsupported - " +
+                        "should be either 'uv', 'uv2', 'normal' or 'geometry'");
+            }
+        }
+        if (layerParam.applyTo) {
+            if (layerParam.applyTo != "baseColor" && // Colour map
+                layerParam.applyTo != "specular" && // Specular map
+                layerParam.applyTo != "emit" && // Emission map
+                layerParam.applyTo != "alpha" && // Alpha map
+                //   layerParam.applyTo != "diffuseColor" &&
+                layerParam.applyTo != "normals") {
+                throw SceneJS._errorModule.fatalError(
+                        SceneJS.errors.NODE_CONFIG_EXPECTED,
+                        "SceneJS.Texture.layers[" + i + "].applyTo value is unsupported - " +
+                                "should be either 'baseColor', 'specular' or 'normals'");
+            }
+        }
+        this._layers.push({
+            state : SceneJS.TextureLayer.STATE_INITIAL,
+            process: null,                      // Image load process handle
+            image : null,                       // Initialised when state == IMAGE_LOADED
+            creationParams: layerParam,         // Create texture using this
+            texture: null,                      // Initialised when state == TEXTURE_LOADED
+            applyFrom: layerParam.applyFrom || "uv",
+            applyTo: layerParam.applyTo || "baseColor",
+            blendMode: layerParam.blendMode || "add",
+            scale : layerParam.scale,
+            translate : layerParam.translate,
+            rotate : layerParam.rotate,
+            rebuildMatrix : true
+        });
     }
 };
 
@@ -25949,14 +26699,14 @@ SceneJS.Texture.prototype.getState = function() {
 
 
 // @private
-SceneJS.Texture.prototype._compile = function(traversalContext) {
-    this._preCompile(traversalContext);
-    this._compileNodes(traversalContext);
-    this._postCompile(traversalContext);
-};
+//SceneJS.Texture.prototype._compile = function(traversalContext) {
+//    this._preCompile(traversalContext);
+//    this._compileNodes(traversalContext);
+//    this._postCompile(traversalContext);
+//};
 
 // @private
-SceneJS.Texture.prototype._preCompile = function(traversalContext) {
+SceneJS.Texture.prototype._compile = function(traversalContext) {
 
     this._countLayersReady = 0;
 
@@ -26028,7 +26778,7 @@ SceneJS.Texture.prototype._preCompile = function(traversalContext) {
 
                                     if (self._state != SceneJS.Texture.STATE_ERROR) { // Don't keep re-entering STATE_ERROR
                                         self._changeState(SceneJS.Texture.STATE_ERROR, {
-                                            exception: new SceneJS.errors.Exception("SceneJS.Exception - " + message)
+                                            exception: new SceneJS.errors.Exception(SceneJS.errors.ERROR, "SceneJS.Exception - " + message)
                                         });
                                     }
                                 },
@@ -26039,7 +26789,7 @@ SceneJS.Texture.prototype._preCompile = function(traversalContext) {
 
                                     if (self._state != SceneJS.Texture.STATE_ERROR) { // Don't keep re-entering STATE_ERROR
                                         self._changeState(SceneJS.Texture.STATE_ERROR, {
-                                            exception: new SceneJS.errors.Exception("SceneJS.Exception - texture image load stopped - user aborted it?")
+                                            exception: new SceneJS.errors.Exception(SceneJS.errors.ERROR, "SceneJS.Exception - texture image load stopped - user aborted it?")
                                         });
                                     }
                                 });
@@ -26093,6 +26843,10 @@ SceneJS.Texture.prototype._preCompile = function(traversalContext) {
             this._changeState(SceneJS.Texture.STATE_LOADED);  // All layers now loaded
         }
 
+        /* Render child nodes
+         */
+        this._compileNodes(traversalContext);
+
         /* Record this node as loaded for "loading-status" events
          */
         SceneJS._loadStatusModule.status.numNodesLoaded++;
@@ -26105,54 +26859,17 @@ SceneJS.Texture.prototype._preCompile = function(traversalContext) {
             }
         }
 
+        if (!this._waitForLoad) {
+            this._compileNodes(traversalContext);
+        }
+
         /* Record this node as loaded for "loading-status" events
          */
         SceneJS._loadStatusModule.status.numNodesLoading++;
     }
-};
 
-//    // @private
-//    SceneJS.Texture.prototype._compileNodes = function(traversalContext) {
-//
-//        /* Fastest strategy is to allow the complete set of layers to load
-//         * before applying any of them. There would be a huge performance penalty
-//         * if we were to apply the incomplete set as layers are still loading -
-//         * SceneJS._renderModule would then have to generate a new shader for each new
-//         * layer loaded, which would become redundant as soon as the next layer is loaded.
-//         */
-//
-//        if (countLayersReady == this._layers.length) {  // All layers loaded
-//            SceneJS._textureModule.pushTexture(this._attr.id, this._layers);
-//
-//            if (this._state != SceneJS.Texture.STATE_ERROR && // Not stuck in STATE_ERROR
-//                this._state != SceneJS.Texture.STATE_LOADED) {    // Waiting for layers to load
-//                this._changeState(SceneJS.Texture.STATE_LOADED);  // All layers now loaded
-//            }
-//
-//            /* Record this node as loaded for "loading-status" events
-//             */
-//            SceneJS._loadStatusModule.status.numNodesLoaded++;
-//
-//            SceneJS.Node.prototype._compileNodes.call(this, traversalContext);
-//
-//            SceneJS._textureModule.popTexture();
-//        } else {
-//
-//            if (this._state != SceneJS.Texture.STATE_ERROR) { // Not stuck in STATE_ERROR
-//                if (this._state != SceneJS.Texture.STATE_LOADING) {   // Waiting in STATE_INITIAL
-//                    this._changeState(SceneJS.Texture.STATE_LOADING); // Now loading some layers
-//                }
-//            }
-//
-//            /* Record this node as loaded for "loading-status" events
-//             */
-//            SceneJS._loadStatusModule.status.numNodesLoading++;
-//
-//            SceneJS.Node.prototype._compileNodes.call(this, traversalContext);
-//        }
-//    };
-
-SceneJS.Texture.prototype._postCompile = function(traversalContext) {
+    /* Post-compile
+     */
     if (this._countLayersReady == this._layers.length) {  // All layers loaded
         SceneJS._textureModule.popTexture();
     }
@@ -26195,12 +26912,14 @@ SceneJS.Texture.prototype._getMatrix = function(translate, rotate, scale) {
  */
 SceneJS.Texture.prototype.setLayer = function(cfg) {
     if (cfg.index == undefined || cfg.index == null) {
-        throw SceneJS._errorModule.fatalError(new SceneJS.errors.InvalidNodeConfigException(
-                "Invalid SceneJS.Texture#setLayerConfig argument: index null or undefined"));
+        throw SceneJS._errorModule.fatalError(
+                 SceneJS.errors.ILLEGAL_NODE_CONFIG,
+                "Invalid SceneJS.Texture#setLayerConfig argument: index null or undefined");
     }
     if (cfg.index < 0 || cfg.index >= this._layers.length) {
-        throw SceneJS._errorModule.fatalError(new SceneJS.errors.InvalidNodeConfigException(
-                "Invalid SceneJS.Texture#setLayer argument: index out of range (" + this._layers.length + " layers defined)"));
+        throw SceneJS._errorModule.fatalError(
+                 SceneJS.errors.ILLEGAL_NODE_CONFIG,
+                "Invalid SceneJS.Texture#setLayer argument: index out of range (" + this._layers.length + " layers defined)");
     }
     var layer = this._layers[cfg.index];
     cfg = cfg.cfg || {};
@@ -26212,6 +26931,38 @@ SceneJS.Texture.prototype.setLayer = function(cfg) {
     }
     if (cfg.rotate) {
         this.setRotate(layer, cfg.rotate);
+    }
+    this._setDirty();
+};
+
+/**
+ *
+ * </code></pre>
+ * @param cfg
+ */
+SceneJS.Texture.prototype.setLayers = function(layers) {
+    for (var index in layers) {
+        if (layers.hasOwnProperty(index)) {
+            if (index != undefined || index != null) {
+
+                if (index < 0 || index >= this._layers.length) {
+                    throw SceneJS._errorModule.fatalError(
+                             SceneJS.errors.ILLEGAL_NODE_CONFIG,
+                            "Invalid SceneJS.Texture#setLayer argument: index out of range (" + this._layers.length + " layers defined)");
+                }
+                var cfg = layers[index] || {};
+                var layer = this._layers[index];
+                if (cfg.translate) {
+                    this.setTranslate(layer, cfg.translate);
+                }
+                if (cfg.scale) {
+                    this.setScale(layer, cfg.scale);
+                }
+                if (cfg.rotate) {
+                    this.setRotate(layer, cfg.rotate);
+                }
+            }
+        }
     }
     this._setDirty();
 };
@@ -26312,8 +27063,8 @@ SceneJS._fogModule = new (function() {
                     && f.mode != "exp2"
                     && f.mode != "linear")) {
             throw SceneJS._errorModule.fatalError(
-                    new SceneJS.errors.InvalidNodeConfigException(
-                            "SceneJS.fog node has a mode of unsupported type - should be 'disabled', 'constant', 'exp', 'exp2' or 'linear'"));
+                    SceneJS.errors.ILLEGAL_NODE_CONFIG,
+                            "SceneJS.fog node has a mode of unsupported type - should be 'disabled', 'constant', 'exp', 'exp2' or 'linear'");
         }
         if (f.mode == "disabled") {
             return {
@@ -26430,8 +27181,9 @@ SceneJS.Fog.prototype._init = function(params) {
 SceneJS.Fog.prototype.setMode = function(mode) {
     mode = mode || "disabled";
     if (mode != "disabled" && mode != "constant" && mode != "exp" && mode != "exp2" && mode != "linear") {
-        throw SceneJS._errorModule.fatalError(new SceneJS.errors.InvalidNodeConfigException(
-                "SceneJS.fog has a mode of unsupported type: '" + mode + " - should be 'disabled', 'constant', 'exp', 'exp2' or 'linear'"));
+        throw SceneJS._errorModule.fatalError(
+                SceneJS.errors.ILLEGAL_NODE_CONFIG,
+                "SceneJS.fog has a mode of unsupported type: '" + mode + " - should be 'disabled', 'constant', 'exp', 'exp2' or 'linear'");
     }
     this._attr.mode = mode;
 };
@@ -26613,16 +27365,22 @@ SceneJS._clipModule = new (function() {
             });
 
     this.pushClip = function(id, clip) {
+        var modelMat = SceneJS._modelTransformModule.getTransform().matrix;
+
+        clip.worldA = SceneJS._math_transformPoint3(modelMat, clip.a);
+        clip.worldB = SceneJS._math_transformPoint3(modelMat, clip.b);
+        clip.worldC = SceneJS._math_transformPoint3(modelMat, clip.c);
+
         clipStack[stackLen] = clip;
         idStack[stackLen] = id;
         stackLen++;
         dirty = true;
     };
 
-    this.popClip = function() {
-        stackLen--;
-        dirty = true;
-    };
+//    this.popClip = function() {
+//        stackLen--;
+//        dirty = true;
+//    };
 
 })();
 
@@ -26647,10 +27405,11 @@ SceneJS.Clip.prototype._init = function(params) {
  @since Version 0.7.9
  */
 SceneJS.Clip.prototype.setMode = function(mode) {
-    mode = mode || "disabled";
+    mode = mode || "outside";
     if (mode != "disabled" && mode != "inside" && mode != "outside") {
-        throw SceneJS._errorModule.fatalError(new SceneJS.errors.InvalidNodeConfigException(
-                "SceneJS.clip has a mode of unsupported type: '" + mode + " - should be 'disabled', 'inside' or 'outside'"));
+        throw SceneJS._errorModule.fatalError(
+                SceneJS.errors.ILLEGAL_NODE_CONFIG,
+                "SceneJS.clip has a mode of unsupported type: '" + mode + " - should be 'disabled', 'inside' or 'outside'");
     }
     this._attr.mode = mode;
     this._memoLevel = 0;
@@ -26672,7 +27431,7 @@ SceneJS.Clip.prototype.getMode = function() {
  @param {object} abc - eg. { a: {x: 0, y: 0, z: 0 }, b: {x: 0, y: 5, z: 0 }, c: {x: 5, y: 5, z: 0 } }
  @since Version 0.7.9
  */
-SceneJS.Clip.prototype.setABC = function(abc) {
+SceneJS.Clip.prototype.setAbc = function(abc) {
     abc = abc || {};
     this.setA(abc.a);
     this.setB(abc.b);
@@ -26685,7 +27444,7 @@ SceneJS.Clip.prototype.setABC = function(abc) {
  @returns {object} Clipping plane - eg. { a: {x: 0, y: 0, z: 0 }, b: {x: 0, y: 5, z: 0 }, c: {x: 5, y: 5, z: 0 } }
  @since Version 0.7.9
  */
-SceneJS.Clip.prototype.getABC = function() {
+SceneJS.Clip.prototype.getAbc = function() {
     return {
         a: this.getA(),
         b: this.getB(),
@@ -26808,45 +27567,31 @@ SceneJS.Clip.prototype._compile = function(traversalContext) {
 };
 
 // @private
-SceneJS.Clip.prototype._preCompile = function(traversalContext) {
-    if (this._memoLevel == 0) {
-        this._makePlane();
-    }
+SceneJS.Clip.prototype._preCompile = function() {
+    //    if (this._memoLevel == 0) {
+    //        this._makeClip();
+    //    }
     SceneJS._clipModule.pushClip(this._attr.id, this._attr);
 };
 
 // @private
-SceneJS.Clip.prototype._postCompile = function(traversalContext) {
-    SceneJS._clipModule.popClip();
+SceneJS.Clip.prototype._postCompile = function() {
+    //SceneJS._clipModule.popClip();
 };
 
 /** Create succinct plane representation from points A, B & C
  *
  */
-SceneJS.Clip.prototype._makePlane = function() {
-    var modelMat = SceneJS._modelTransformModule.getTransform().matrix;
-    var viewMat = SceneJS._viewTransformModule.getTransform().matrix;
-
-    var a = SceneJS._math_transformPoint3(viewMat, SceneJS._math_transformPoint3(modelMat, this._attr.a));
-    var b = SceneJS._math_transformPoint3(viewMat, SceneJS._math_transformPoint3(modelMat, this._attr.b));
-    var c = SceneJS._math_transformPoint3(viewMat, SceneJS._math_transformPoint3(modelMat, this._attr.c));
-
-    var q = [
-        b[0] - a[0],
-        b[1] - a[1],
-        b[2] - a[2]
-    ];
-    var v = [
-        b[0] - c[0],
-        b[1] - c[1],
-        b[2] - c[2]
-    ];
-
-    this._attr.normal = SceneJS._math_normalizeVec3(SceneJS._math_cross3Vec3(q, v));
-    this._attr.dist = SceneJS._math_dotVector3(this._attr.normal, [a[0], a[1], a[2]]);   // dist from origin
-
-    // this._memoLevel = 1;
-};
+//SceneJS.Clip.prototype._makeClip = function() {
+//    var modelMat = SceneJS._modelTransformModule.getTransform().matrix;
+//
+//    this._clip = {
+//        mode: this._attr.mode,
+//        a : SceneJS._math_transformPoint3(modelMat, this._attr.a),
+//        b : SceneJS._math_transformPoint3(modelMat, this._attr.b),
+//        c : SceneJS._math_transformPoint3(modelMat, this._attr.c)
+//    };
+//};
 
 /**
  * Backend that manages mesh deformation. Deformations are pushed and popped by "deform" nodes.
@@ -26858,9 +27603,6 @@ SceneJS._deformModule = new (function() {
     var deformStack = new Array(255);
     var stackLen = 0;
     var dirty;
-
-    var viewMat;
-    var modelMat;
 
     SceneJS._eventModule.addListener(
             SceneJS._eventModule.SCENE_COMPILING,
@@ -26876,18 +27618,6 @@ SceneJS._deformModule = new (function() {
              });    
 
     SceneJS._eventModule.addListener(
-            SceneJS._eventModule.VIEW_TRANSFORM_UPDATED,
-            function(params) {
-                viewMat = params.matrix;
-            });
-
-    SceneJS._eventModule.addListener(
-            SceneJS._eventModule.MODEL_TRANSFORM_UPDATED,
-            function(params) {
-                modelMat = params.matrix;
-            });
-
-    SceneJS._eventModule.addListener(
             SceneJS._eventModule.SHADER_RENDERING,
             function() {
                 if (dirty) {
@@ -26901,26 +27631,20 @@ SceneJS._deformModule = new (function() {
             });
 
     this.pushDeform = function(id, deform) {
-        var d = {
-            verts: []
-        };
+        var modelMat = SceneJS._modelTransformModule.getTransform().matrix;
         var vert;
         for (var i = 0, len = deform.verts.length; i < len; i++) {
             vert = deform.verts[i];
-            d.verts.push({
-                pos: SceneJS._math_transformPoint3(viewMat, SceneJS._math_transformPoint3(modelMat, [vert.x, vert.y, vert.z])) ,
-                mode: vert.mode,
-                weight: vert.weight
-            });
+            vert.worldPos = SceneJS._math_transformPoint3(modelMat, [vert.x, vert.y, vert.z]);
         }
         idStack[stackLen] = id;
-        deformStack[stackLen] = d;
+        deformStack[stackLen] = deform;
         stackLen++;
         dirty = true;
     };
 
     this.popDeform = function() {
-        stackLen--;
+     //   stackLen--;
         dirty = true;
     };
 
@@ -26942,8 +27666,9 @@ SceneJS.Deform.prototype.setVerts = function(verts) {
     for (var i = 0, len = verts.length; i < len; i++) {
         vert = verts[i];
         if (vert.mode && (vert.mode != "linear" && vert.mode != "exp")) {
-            throw SceneJS._errorModule.fatalError(new SceneJS.errors.InvalidNodeConfigException(
-                    "Can't set deform vertex " + i + " - unsupported mode - should be 'linear' or 'exp'"));
+            throw SceneJS._errorModule.fatalError(
+                    SceneJS.errors.ILLEGAL_NODE_CONFIG,
+                    "Can't set deform vertex " + i + " - unsupported mode - should be 'linear' or 'exp'");
         }
         tmpVerts.push({
             x: vert.x || 0.0,
@@ -26959,16 +27684,19 @@ SceneJS.Deform.prototype.setVerts = function(verts) {
 SceneJS.Deform.prototype.setVert = function(vert) {
     vert = vert || {};
     if (vert.index == undefined) {
-        throw SceneJS._errorModule.fatalError(new SceneJS.errors.InvalidNodeConfigException(
-                "Can't set deform vertex - attribute missing: 'index'"));
+        throw SceneJS._errorModule.fatalError(
+                SceneJS.errors.ILLEGAL_NODE_CONFIG,
+                "Can't set deform vertex - attribute missing: 'index'");
     }
     if (vert.index < 0 || vert.index >= this._attr.verts.length) {
-        throw SceneJS._errorModule.fatalError(new SceneJS.errors.InvalidNodeConfigException(
-                "Can't set deform vertex - index " + vert.indx + " out of range of existing vertices [0-" + this._attr.verts.length + "]"));
+        throw SceneJS._errorModule.fatalError(
+                SceneJS.errors.ILLEGAL_NODE_CONFIG,
+                "Can't set deform vertex - index " + vert.indx + " out of range of existing vertices [0-" + this._attr.verts.length + "]");
     }
     if (vert.mode && (vert.mode != "linear" && vert.mode != "exp")) {
-        throw SceneJS._errorModule.fatalError(new SceneJS.errors.InvalidNodeConfigException(
-                "Can't set deform vertex - unsupported mode - should be 'linear' or 'exp'"));
+        throw SceneJS._errorModule.fatalError(
+                SceneJS.errors.ILLEGAL_NODE_CONFIG,
+                "Can't set deform vertex - unsupported mode - should be 'linear' or 'exp'");
     }
     var temp = this._attr.verts[vert.index];
 
@@ -26983,12 +27711,14 @@ SceneJS.Deform.prototype.setVert = function(vert) {
 
 SceneJS.Deform.prototype.getVert = function(index) {
     if (index == undefined) {
-        throw SceneJS._errorModule.fatalError(new SceneJS.errors.InvalidNodeConfigException(
-                "Can't get deform vertex - attribute missing: 'index'"));
+        throw SceneJS._errorModule.fatalError(
+                SceneJS.errors.ILLEGAL_NODE_CONFIG,
+                "Can't get deform vertex - attribute missing: 'index'");
     }
     if (index < 0 || index > this._attr.verts.length) {
-        throw SceneJS._errorModule.fatalError(new SceneJS.errors.InvalidNodeConfigException(
-                "Can't get deform vertex - index out of range of existing vertices"));
+        throw SceneJS._errorModule.fatalError(
+                SceneJS.errors.ILLEGAL_NODE_CONFIG,
+                "Can't get deform vertex - index out of range of existing vertices");
     }
     return SceneJS._shallowClone(this._attr.verts[index]);
 };
@@ -26996,8 +27726,9 @@ SceneJS.Deform.prototype.getVert = function(index) {
 SceneJS.Deform.prototype.addVert = function(vert) {
     vert = vert || {};
     if (vert.mode && (vert.mode != "linear" && vert.mode != "exp")) {
-        throw SceneJS._errorModule.fatalError(new SceneJS.errors.InvalidNodeConfigException(
-                "Can't add deform vertex - unsupported mode - should be 'linear' or 'exp'"));
+        throw SceneJS._errorModule.fatalError(
+                SceneJS.errors.ILLEGAL_NODE_CONFIG,
+                "Can't add deform vertex - unsupported mode - should be 'linear' or 'exp'");
     }
     var temp = {
         x: vert.x || 0.0,
@@ -27015,12 +27746,14 @@ SceneJS.Deform.prototype.addVert = function(vert) {
 
 SceneJS.Deform.prototype.removeVert = function(index) {
     if (index == undefined) {
-        throw SceneJS._errorModule.fatalError(new SceneJS.errors.InvalidNodeConfigException(
-                "Can't remove deform vertex - attribute undefined: 'index'"));
+        throw SceneJS._errorModule.fatalError(
+                SceneJS.errors.ILLEGAL_NODE_CONFIG,
+                "Can't remove deform vertex - attribute undefined: 'index'");
     }
     if (index < 0 || index > this._attr.verts.length) {
-        throw SceneJS._errorModule.fatalError(new SceneJS.errors.InvalidNodeConfigException(
-                "Can't remove deform vertex - index out of range of existing vertices"));
+        throw SceneJS._errorModule.fatalError(
+                SceneJS.errors.ILLEGAL_NODE_CONFIG,
+                "Can't remove deform vertex - index out of range of existing vertices");
     }
     this._attr.verts.splice(index, 1);
 };
@@ -27097,20 +27830,63 @@ SceneJS._morphGeometryModule = new (function() {
                         /* Get top morph on stack
                          */
                         var morph = morphStack[stackLen - 1];
+                        var factor = morph.factor;
 
-                        /* Select target frame
+                        /* Will hold target frame enclosing factor
                          */
-                        var target1 = morph.targets[0];   // Just for testing
-                        var target2 = morph.targets[1];
+                        var key1;
+                        var key2;
 
-                        /* Set on shader module
+                        /* Find the target frame
+                         */
+                        if (factor <= morph.keys[0]) {
+
+                            /* Clamp to first target frame
+                             */
+                            factor = morph.keys[0];
+                            key1 = 0;
+                            key2 = 1;
+
+                        } else {
+
+                            if (factor >= morph.keys[morph.keys.length - 1]) {
+
+                                /* Clamp to last target frame
+                                 */
+                                factor = morph.keys[morph.keys.length - 1];
+                                key1 = morph.keys.length - 2;
+                                key2 = morph.keys.length - 1;
+
+                            } else {
+
+                                /* Find target frame enclosing
+                                 */
+                                for (var i = morph.targets.length - 1; i >= 0; i--) {
+                                    if (factor > morph.keys[i]) {
+                                        key1 = i;
+                                        key2 = i + 1; // Clamping to last ensures this is never out of range
+                                        break;
+                                    }
+                                }
+                            }
+                        }
+
+                        /* Normalise factor to range [0.0..1.0] for the target frame
+                         */
+                        var normalizedFactor = (factor - morph.keys[key1]) / (morph.keys[key2] - morph.keys[key1]);
+
+                        /* Set factor and target frame on shader module
                          */
                         SceneJS._renderModule.setMorph(idStack[stackLen - 1], {
-                            factor: morph.factor,
-                            target1: target1,
-                            target2: target2
+                            factor: normalizedFactor,
+                            target1: morph.targets[key1],
+                            target2: morph.targets[key2]
                         });
+
                     } else {
+
+                        /* Set null morph
+                         */
                         SceneJS._renderModule.setMorph();
                     }
                     dirty = false;
@@ -27179,18 +27955,48 @@ SceneJS._morphGeometryModule = new (function() {
     };
 
     /**
-     * Creates morph on the active canvas
+     * Creates a morph on the active canvas
+     * @param resource Resource ID that morph VBOs are mapped to - when null, generated by this module
+     * @param source   Data comtaining morph targets - can be stream ID or object containing targets
+     * @param callback Callback that returns handle to morph once created
+     *
      */
-    this.createMorphGeometry = function(resource, attr) {
+    this.createMorphGeometry = function(resource, source, callback) {
+
         if (!resource) {
             resource = SceneJS._createKeyForMap(currentMorphMap, "m");
         }
+
+        if (typeof source == "string") {
+
+            /* Load from stream
+             */
+            var geoService = SceneJS.Services.getService(SceneJS.Services.MORPH_GEO_LOADER_SERVICE_ID);
+            var self = this;
+
+
+            /* http://scenejs.wikispaces.com/MorphGeoLoaderService
+             */
+            geoService.loadMorphGeometry(source,
+                    function(data) {
+                        callback(self._createMorph(resource, data));
+                    });
+
+        } else {
+
+            /* Targets specified
+             */
+            return this._createMorph(resource, source);
+        }
+    };
+
+    this._createMorph = function(resource, data) {
+
         var context = canvas.context;
 
         var morph = {
             resource: resource,
-            keys: attr.keys,
-            instant : attr.instant,
+            keys: data.keys,
             targets: []
         };
 
@@ -27199,16 +28005,19 @@ SceneJS._morphGeometryModule = new (function() {
             var usage = context.STATIC_DRAW;
 
             var target;
+            var typedArrays;
             var newTarget;
 
-            for (var i = 0, len = attr.targets.length; i < len; i++) {
-                target = attr.targets[i];
+            for (var i = 0, len = data.targets.length; i < len; i++) {
+                target = data.targets[i];
 
                 newTarget = {};
                 morph.targets.push(newTarget);  // We'll iterate this to destroy targets when we recover from error
 
+                typedArrays = createTypedArrays(target);
+
                 if (target.positions && target.positions.length > 0) {
-                    newTarget.vertexBuf = new SceneJS._webgl_ArrayBuffer(context, context.ARRAY_BUFFER,
+                     newTarget.vertexBuf = new SceneJS._webgl_ArrayBuffer(context, context.ARRAY_BUFFER,
                             new Float32Array(target.positions), target.positions.length, 3, usage);
                 }
                 if (target.normals && target.normals.length > 0) {
@@ -27224,8 +28033,10 @@ SceneJS._morphGeometryModule = new (function() {
                             new Float32Array(target.uv2), target.uv2.length, 2, usage);
                 }
             }
+
             currentMorphMap[resource] = morph;
-            return resource;
+
+            return { resource: resource };
 
         } catch (e) {
 
@@ -27250,6 +28061,14 @@ SceneJS._morphGeometryModule = new (function() {
         }
     };
 
+    function createTypedArrays(data) {
+        return {
+            positions: data.positions ? new Float32Array(data.positions) : undefined,
+            normals: data.normals ? new Float32Array(data.normals) : undefined,
+            uv: data.uv ? new Float32Array(data.uv) : undefined,
+            uv2: data.uv2 ? new Float32Array(data.uv2) : undefined
+        };
+    }
 
     this.pushMorphGeometry = function(id, resource, factor) {
         var morph = currentMorphMap[resource];
@@ -27275,6 +28094,30 @@ SceneJS.MorphGeometry = SceneJS.createNodeType("morphGeometry");
 // @private
 SceneJS.MorphGeometry.prototype._init = function(params) {
 
+    this._state = SceneJS.Geometry.STATE_INITIAL;
+
+    if (params.create instanceof Function) {
+
+        /* Factory function
+         */
+        this._create = params.create;
+
+    } else if (params.stream) {
+
+        /* Binary Stream
+         */
+        this._stream = params.stream;
+
+    } else {
+
+        this._setMorph(params);
+    }
+
+    this._attr.factor = params.factor || 0;
+};
+
+SceneJS.MorphGeometry.prototype._setMorph = function(params) {
+
     /*--------------------------------------------------------------------------
      * 1. Check we have enough targets for interpolation
      *-------------------------------------------------------------------------*/
@@ -27282,9 +28125,21 @@ SceneJS.MorphGeometry.prototype._init = function(params) {
     var targets = params.targets || [];
     if (targets.length < 2) {
         throw SceneJS._errorModule.fatalError(
-                new SceneJS.errors.InvalidNodeConfigException(
-                        "morphGeometry node should have at least two targets"));
+                SceneJS.errors.ILLEGAL_NODE_CONFIG,
+                "morphGeometry node should have at least two targets");
     }
+
+    var keys = params.keys || [];
+    if (keys.length != targets.length) {
+        throw SceneJS._errorModule.fatalError(
+                SceneJS.errors.ILLEGAL_NODE_CONFIG,
+                "morphGeometry node mismatch in number of keys and targets");
+    }
+
+    /*--------------------------------------------------------------------------
+     * 2. First target's arrays are defaults for where not given
+     * on subsequent targets
+     *-------------------------------------------------------------------------*/
 
     var positions;
     var normals;
@@ -27307,6 +28162,7 @@ SceneJS.MorphGeometry.prototype._init = function(params) {
             uv2 = target.uv2.slice(0);
         }
     }
+
     for (var i = 0, len = targets.length; i < len; i++) {
         target = targets[i];
         if (!target.positions) {
@@ -27323,9 +28179,49 @@ SceneJS.MorphGeometry.prototype._init = function(params) {
         }
     }
 
+    this._attr.keys = keys;
     this._attr.targets = targets;
-    this._attr.factor = params.factor || 0;
 };
+
+/** Ready to create MorphGeometry
+ */
+SceneJS.MorphGeometry.STATE_INITIAL = "init";
+
+/** MorphGeometry in the process of loading
+ */
+SceneJS.MorphGeometry.STATE_LOADING = "loading";
+
+/** MorphGeometry loaded - MorphGeometry initailised from JSON arrays is immediately in this state and stays here
+ */
+SceneJS.MorphGeometry.STATE_LOADED = "loaded";
+
+/**
+ * Returns the node's current state. Possible states are {@link #STATE_INITIAL},
+ * {@link #STATE_LOADING}, {@link #STATE_LOADED}.
+ * @returns {int} The state
+ */
+SceneJS.MorphGeometry.prototype.getState = function() {
+    return this._state;
+};
+
+// @private
+SceneJS.MorphGeometry.prototype._changeState = function(newState, params) {
+    params = params || {};
+    params.oldState = this._state;
+    params.newState = newState;
+    this._state = newState;
+    if (this._listeners["state-changed"]) {
+        this._fireEvent("state-changed", params);
+    }
+};
+
+/** Returns this MorphGeometry's stream ID, if any
+ * @return {String} ID of stream
+ */
+SceneJS.MorphGeometry.prototype.getStream = function() {
+    return this._stream;
+};
+
 
 /**
  Sets the morph factor, a value between [0.0 - 1.0]
@@ -27354,15 +28250,85 @@ SceneJS.MorphGeometry.prototype._compile = function(traversalContext) {
 
 // @private
 SceneJS.MorphGeometry.prototype._preCompile = function(traversalContext) {
+
     if (!this._handle) { // Not created yet
+
         this._handle = SceneJS._morphGeometryModule.createMorphGeometry(this._resource, this._attr);
+
+        this._changeState(SceneJS.MorphGeometry.STATE_LOADED);
     }
     SceneJS._morphGeometryModule.pushMorphGeometry(this._attr.id, this._handle, this._attr.factor);
 };
 
+SceneJS.MorphGeometry.prototype._preCompile = function(traversalContext) {
+    if (!this._handle) {
+
+        /* Morph VBOs not created yet
+         */
+        if (this._create) {
+
+            /* Targets supplied via callback
+             */
+            var params = this._create();
+
+            this._setMorph(params);
+
+            this._handle = SceneJS._morphGeometryModule.createMorphGeometry(
+                    this._resource,
+                    this._attr);
+
+            this._changeState(SceneJS.MorphGeometry.STATE_LOADED);
+
+        } else if (this._stream) {
+
+            /* Targets loaded from stream(s)
+             */
+
+            this._changeState(SceneJS.MorphGeometry.STATE_LOADING);
+
+            var self = this;
+
+            SceneJS._morphGeometryModule.createMorphGeometry(
+                    this._resource,
+                    this._stream,
+                    function(handle) {
+
+                        self._handle = handle;
+
+                        self._changeState(SceneJS.MorphGeometry.STATE_LOADED);
+
+                        /**
+                         * Need another compilation to apply freshly-loaded morphGeometry
+                         */
+                        SceneJS._compileModule.nodeUpdated(self, "loaded");
+                    });
+
+        } else { // Arrays
+
+            this._handle = SceneJS._morphGeometryModule.createMorphGeometry(
+                    this._resource,
+                    this._attr);
+
+            this._changeState(SceneJS.MorphGeometry.STATE_LOADED);
+        }
+    }
+
+    if (this._handle) {
+
+        /* Apply morphGeometry
+         */
+        SceneJS._morphGeometryModule.pushMorphGeometry(
+                this._attr.id,
+                this._handle.resource,
+                this._attr.factor);
+    }
+};
+
 // @private
 SceneJS.MorphGeometry.prototype._postCompile = function(traversalContext) {
-    SceneJS._morphGeometryModule.popMorphGeometry();
+    if (this._handle) {
+        SceneJS._morphGeometryModule.popMorphGeometry();
+    }
 };
 /**
  *

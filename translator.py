@@ -81,11 +81,18 @@ def translate_material(mat):
         _rgb_attribute(jsmaterial, 'baseColor', (0.5,0.5,0.5))
         if type(mat.diffuse) is collada.material.Map:
             print "TODO: BUSY HERE (create a texture)"
+            # Create texture
         elif _verbose:
-            print "Unknown diffuse colour input: " + str(mat.diffuse)
-    _rgb_attribute(jsmaterial, 'specularColor', mat.specular)
-    _float_attribute(jsmaterial, 'shine', mat.shininess)
-    _float_attribute(jsmaterial, 'alpha', mat.transparency)
+            print "Unknown diffuse input: " + str(mat.diffuse)
+    if not _rgb_attribute(jsmaterial, 'specularColor', mat.specular):
+        if _verbose:
+            print "Unknown specular input: " + str(mat.specular)
+    if not _float_attribute(jsmaterial, 'shine', mat.shininess):
+        if _verbose:
+            print "Unknown shininess input: " + str(mat.shininess)
+    if not _float_attribute(jsmaterial, 'alpha', mat.transparency):
+        if _verbose:
+            print "Unknown transparency input: " + str(mat.transparency)
     if mat.emission and type(mat.emission) is tuple:
         jsmaterial['emit'] = (mat.emission[0] + mat.emission[1] + mat.emission[2]) / 3.0
     # TODO: not yet supported 'reflect': mat.reflective...
@@ -116,36 +123,9 @@ def translate_geometry(geom):
         'resource': geom.id,
     }
     
-    # OLD: 
-    #jssubgeom = {}
-    #jssubgeom['triangles'] = {
-    #    'type': 'geometry',
-    #    'primitive': 'triangles',
-    #    'id': geom.id,
-    #    'resource': geom.id,
-    #    'indices': []
-    #}
-    #
-    ## Note: lines and triangles will share the same resource id as they may share vertices
-    #jssubgeom['lines'] = {
-    #    'type': 'geometry',
-    #    'primitive': 'lines',
-    #    'id': geom.id + '-lines',
-    #    'resource': geom.id,
-    #    'indices': []
-    #}
-    
     # TODO: Point geometry is not currently supported due to the limitations of the Collada format (also see the notes lower down in this function)
-    ## Note: a new resource id is created for point clouds since it usually does not make much sense to use indices with points
-    ##       it is possible that points may share vertices with polygons or lines but this feature is unlikely to be supported by
-    ##       exporters (such as blender). Blender currently exports points without any indexes...
-    #jssubgeom['points'] = {
-    #    'type': 'geometry',
-    #    'primitive': 'points'
-    #    'id': geom.id + '-points',
-    #    'resource': geom.id + '-points',
-    #    'vertices': []
-    #}
+    # Note: Blender currently exports points without any indexes... It is debatable whether these could be implemented as point sprites (collada does not properly support
+    #       support point clouds, so it seems unlikely.
     jssubgeoms = []
 
     c_subgeom = 0
@@ -182,13 +162,7 @@ def translate_geometry(geom):
             # TODO: support other attributes (sources) in a similar manner
 
             # Initialize the index mapping table for vertex attributes
-
-            # OLD:
-            #if prim.normal != None or (prim.texcoordset != None and len(prim.texcoordset) > 0):
-            #    packed_empty_index = pack_indices(-1 if prim.normal != None else None,\
-            #                                      -1 if prim.texcoordset != None and len(prim.texcoordset) > 0 else None)
-            #    #                                 (-1,) if prim.texcoordset != None and len(prim.texcoordset) > 0 else None)
-            #    index_map = [(packed_empty_index, -1)] * len(prim.vertex)
+            # Possibly use len(prim.texcoordset) to determine number for texture coordinate sets
             num_index_elems = 1 + (1 if prim.normal != None else 0) + (1 if prim.texcoordset != () else 0)
             index_map = array([[-1] * num_index_elems] * len(prim.vertex))
             use_index_map = (prim.normal != None or (prim.texcoordset != None and len(prim.texcoordset) > 0))
@@ -211,10 +185,8 @@ def translate_geometry(geom):
             # Create a polyindex regardless of the underlying geometry
             polyindex = None
             if type(prim) is collada.triangleset.TriangleSet:
-                #polyindex = (array([3 * x, 3 * x + 3]) for x in range(0, len(prim.vertex)))
                 polyindex = (array([3 * x, 3 * x + 3]) for x in range(0, prim.ntriangles))
             elif type(prim) is collada.lineset.LineSet:
-                #polyindex = (array([2 * x, 2 * x + 2]) for x in range(0, len(prim.vertex)))
                 polyindex = (array([2 * x, 2 * x + 2]) for x in range(0, prim.nlines))
             elif type(prim) is collada.polylist.PolygonList:
                 polyindex = prim.polyindex
@@ -233,36 +205,15 @@ def translate_geometry(geom):
             else:
                 norm_index = -1
                 prim_index_index = 0
-                #for prim_poly_index in polyindex:
-                #    print range(prim_poly_index[0], prim_poly_index[1])
-                #print polyindex
                 for prim_poly_index in polyindex:
-                    #prim_norm_index = prim.normal_index[prim_index_index] if prim.normal != None else None
-                    #prim_texcoord_indexset = prim.texcoord_indexset[0][prim_index_index] if prim.texcoordset != None and len(prim.texcoord_indexset) > 0 else None
-                    #print range(prim_poly_index[0], prim_poly_index[1])
                     for poly_index in range(prim_poly_index[0], prim_poly_index[1]):
                         attr_indexes = primindex[poly_index]
-                        #print polyindex
-                        #print prim_poly_index
-                        #print primindex
-                        #print poly_index
-                        #if type(prim) is collada.lineset.LineSet:
-                        #    print attr_indexes
                         vert_index = attr_indexes[0] # We use the first attribute index as the primary index to determine whether vertex attributes should be shared (this is probably, but not neccesarily the "position" index)
-                        #vert_index = prim_vert_index[i]
-                        #orm_index = prim_norm_index[i] if prim_norm_index != None else None
-                        #texcoord_indexset = prim_texcoord_indexset[i] if prim_texcoord_indexset != None else None                            
 
                         # Find an entry in the index_map that matches all of the indices of the other vertex attributes
-                        #while vert_index != -1 and not match_index_indices(index_map[vert_index][0], norm_index, texcoord_indexset):
-                        #print attr_indexes[1:]
-                        #print index_map[vert_index][:-1]
-                        #print str(vert_index) + ": Is " + str(index_map[vert_index][:-1]) + " == " + str(attr_indexes[1:]) + " = " + str(array_equal(index_map[vert_index][:-1], attr_indexes[1:]))
-                        #print index_map[vert_index][0]
                         while vert_index != -1 and not (array_equal(index_map[vert_index][:-1], attr_indexes[1:]) or index_map[vert_index][0] == -1):
                             prev_vert_index = vert_index
                             vert_index = index_map[vert_index][-1]
-                            #print "vert index " + str(vert_index)
 
                         # If a new index has to be added to the index_map, then do so
                         # I.e. vert_index will be -1 if we could not match it to an existing entry in the index_map
@@ -270,38 +221,22 @@ def translate_geometry(geom):
                         if vert_index == -1:
                             vert_index = len(jsgeom['positions']) / 3
                             index_map[prev_vert_index][-1] = len(index_map)
-                            #print index_map
-                            #print append(attr_indexes[1:], [-1])
                             index_map = append(index_map, [append(attr_indexes[1:], [-1])], axis=0)
 
                             # Now add new entries for vertex attributes themselves
-                            #jsgeom['positions'].extend(float(p) for p in prim.vertex[prim_vert_index[i]])
                             if prim.sources['VERTEX']:
                                 jsgeom['positions'].extend([float(p) for p in prim.vertex[attr_indexes[prim.sources['VERTEX'][0][0]]]])
-                            #if norm_index != None: jsgeom['normals'].extend([float(n) for n in prim.normal[prim_norm_index[i]]])
                             if prim.sources['NORMAL']:
                                 jsgeom['normals'].extend([float(n) for n in prim.normal[attr_indexes[prim.sources['NORMAL'][0][0]]]])
-                            #if texcoord_indexset != None: jsgeom['uv'].extend([float(uv) for uv in prim.texcoordset[0][prim_texcoord_indexset[i]]])
                             if prim.sources['TEXCOORD']:
                                 jsgeom['uv'].extend([float(uv) for uv in prim.texcoordset[0][attr_indexes[prim.sources['TEXCOORD'][0][0]]]])
                         elif index_map[vert_index][0] == -1:
                             # Replace the [-1] entry with the correct attribute indexes
                             #index_map[vert_index] = (pack_indices(norm_index, texcoord_indexset), -1)
 
-                            # Here
-                            #print index_map.shape
-                            #print attr_indexes.shape
-                            #print index_map
-                            #print attr_indexes
-
                             index_map[vert_index][:-1] = attr_indexes[1:]
-                            #print attr_indexes
-                            #print "attr " + str(attr_indexes[1])
-                            #if norm_index != None: jsgeom['normals'][vert_index*3:vert_index*3+3] = [float(n) for n in prim.normal[prim_norm_index[i]]]
-                            #print "normals !!!" + str( [float(n) for n in prim.normal[attr_indexes[prim.sources['NORMAL'][0][0]]]] )
                             if prim.sources['NORMAL']:
                                 jsgeom['normals'][vert_index*3:vert_index*3+3] = [float(n) for n in prim.normal[attr_indexes[prim.sources['NORMAL'][0][0]]]]
-                            #if texcoord_indexset != None: jsgeom['uv'][vert_index*2:vert_index*2+2] = [float(uv) for uv in prim.texcoordset[0][prim_texcoord_indexset[i]]]
                             if prim.sources['TEXCOORD']:
                                 jsgeom['uv'][vert_index*2:vert_index*2+2] = [float(uv) for uv in prim.texcoordset[0][attr_indexes[prim.sources['TEXCOORD'][0][0]]]]
 

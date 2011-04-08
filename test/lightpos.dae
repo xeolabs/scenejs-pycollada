@@ -5,8 +5,8 @@
       <author>Blender User</author>
       <authoring_tool>Blender 2.56.0 r34074</authoring_tool>
     </contributor>
-    <created>2011-04-08T13:15:18</created>
-    <modified>2011-04-08T13:15:18</modified>
+    <created>2011-04-08T13:34:29</created>
+    <modified>2011-04-08T13:34:29</modified>
     <unit name="meter" meter="1"/>
     <up_axis>Z_UP</up_axis>
   </asset>
@@ -265,7 +265,7 @@
         </instance_geometry>
       </node>
       <node id="Lamp" type="NODE">
-        <translate sid="location">-1.203257 -1.57103 2.223218</translate>
+        <translate sid="location">-1.203257 -1.57103 1.401107</translate>
         <rotate sid="rotationZ">0 0 1 106.9363</rotate>
         <rotate sid="rotationY">0 1 0 3.163707</rotate>
         <rotate sid="rotationX">1 0 0 37.26105</rotate>

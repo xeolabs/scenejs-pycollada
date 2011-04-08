@@ -68,29 +68,6 @@ SceneJS.createNode({
                                 {
                                     nodes: [
                                         {
-                                            baseColor:
-                                                {
-                                                    r: 0.64,
-                                                    b: 0.64,
-                                                    g: 0.64,
-                                                },
-                                            nodes: [
-                                                {
-                                                    type: 'instance',
-                                                    target: 'Cube-mesh',
-                                                },
-                                            ],
-                                            type: 'material',
-                                            id: 'Cube-mesh-Material-effect',
-                                            emit: 0.0,
-                                        },
-                                    ],
-                                    elements: [1.0,0.0,0.0,0.0,0.0,1.0,0.0,0.0,0.0,0.0,1.0,0.0,0.0,0.0,0.0,1.0,],
-                                    type: 'matrix',
-                                },
-                                {
-                                    nodes: [
-                                        {
                                             color:
                                                 {
                                                     r: 1.0,
@@ -111,6 +88,29 @@ SceneJS.createNode({
                                         },
                                     ],
                                     elements: [-0.290864348412,-0.771100878716,0.566393256187,4.07624483109,0.955171227455,-0.199883148074,0.218391031027,1.00545394421,-0.055189050734,0.604524731636,0.794672250748,5.90386199951,0.0,0.0,0.0,1.0,],
+                                    type: 'matrix',
+                                },
+                                {
+                                    nodes: [
+                                        {
+                                            baseColor:
+                                                {
+                                                    r: 0.64,
+                                                    b: 0.64,
+                                                    g: 0.64,
+                                                },
+                                            nodes: [
+                                                {
+                                                    type: 'instance',
+                                                    target: 'Cube-mesh',
+                                                },
+                                            ],
+                                            type: 'material',
+                                            id: 'Cube-mesh-Material-effect',
+                                            emit: 0.0,
+                                        },
+                                    ],
+                                    elements: [1.0,0.0,0.0,0.0,0.0,1.0,0.0,0.0,0.0,0.0,1.0,0.0,0.0,0.0,0.0,1.0,],
                                     type: 'matrix',
                                 },
                             ],

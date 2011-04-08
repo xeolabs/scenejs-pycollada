@@ -354,6 +354,13 @@ def translate_geometry(geom):
     
     return jsgeom
 
+def contains_light_nodes(jsnodes):
+    # TODO: For now this function just checks if there's a child light node, it does not check all the way down the hierarchy
+    #       If lights are nested deeply, then it's likely there would be an ordering problem anyway that couldn't be resolved
+    #       with a simple reordering algorithm
+    # Because lights are inserted first, it is only necessary to test whether the first node is a light
+    return jsnodes and jsnodes[0]['type'] == 'light'
+
 def _translate_scene_nodes(nodes):
     """
       Recursively translates collada scene graph nodes (instantiating the nodes defined in the library).
@@ -381,11 +388,20 @@ def _translate_scene_nodes(nodes):
                 jschild_nodes = _translate_scene_nodes(node.nodes)
                 # Don't append the transform node unless it has children (isolated transform nodes are redundant)
                 if jschild_nodes:
-                    jsnodes.append({ 
-                        'type': 'matrix', 
-                        'elements': [float(element) for row in node.matrix for element in row],
-                        'nodes': jschild_nodes
-                    })
+                    # Light nodes should always be placed first in the list (because they are activated in order)
+                    elems = [float(element) for row in node.matrix for element in row]
+                    if contains_light_nodes(jschild_nodes):
+                        jsnodes.insert(0, { 
+                            'type': 'matrix', 
+                            'elements': elems,
+                            'nodes': jschild_nodes
+                        })
+                    else:
+                        jsnodes.append({ 
+                            'type': 'matrix', 
+                            'elements': elems,
+                            'nodes': jschild_nodes
+                        })
         elif type(node) is collada.scene.ControllerNode:
             print "Controller Node!"
         elif type(node) is collada.scene.CameraNode:
@@ -424,6 +440,8 @@ def _translate_scene_nodes(nodes):
                     jslight['dir']['x'] = float(node.light.direction[0])
                     jslight['dir']['y'] = float(node.light.direction[1])
                     jslight['dir']['z'] = float(node.light.direction[2])
+                
+                # Light nodes should always be placed first in the list (because they are activated in order)
                 jsnodes.insert(0, jslight)
         elif type(node) is collada.scene.ExtraNode:
             print "Extra Node!"

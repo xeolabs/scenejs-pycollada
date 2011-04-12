@@ -47,7 +47,7 @@ SceneJS.createNode({
                                     near: 0.1,
                                     type: 'perspective',
                                     aspect: 1.0,
-                                    fovy: 87.3499486965,
+                                    fovy: 27.6380627952,
                                 },
                             nodes: [
                                 {

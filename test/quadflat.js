@@ -8,7 +8,7 @@ SceneJS.createNode({
                     g: 0.64,
                 },
             type: 'material',
-            id: 'Material-effect',
+            id: 'Material',
             emit: 0.0,
         },
         {
@@ -67,7 +67,7 @@ SceneJS.createNode({
                                                 },
                                             ],
                                             type: 'material',
-                                            id: 'Cube-mesh-Material-effect',
+                                            id: 'Cube-mesh-Material',
                                             emit: 0.0,
                                         },
                                     ],
@@ -87,8 +87,8 @@ SceneJS.createNode({
                         },
                     up:
                         {
-                            y: 0.312468707561,
-                            x: -0.317370146513,
+                            y: 0.312468677759,
+                            x: -0.317370116711,
                             z: 0.895343244076,
                         },
                 },

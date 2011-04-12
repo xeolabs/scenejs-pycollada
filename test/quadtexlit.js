@@ -8,7 +8,7 @@ SceneJS.createNode({
                     b: 0.5,
                     g: 0.5,
                 },
-            id: 'Plain-effect',
+            id: 'Plain',
             specularColor:
                 {
                     r: 0.25,
@@ -94,7 +94,7 @@ SceneJS.createNode({
                                                     b: 0.5,
                                                     g: 0.5,
                                                 },
-                                            id: 'Cube_007-mesh-Plain-effect',
+                                            id: 'Cube_007-mesh-Plain',
                                             specularColor:
                                                 {
                                                     r: 0.25,
@@ -123,12 +123,12 @@ SceneJS.createNode({
                         {
                             y: -7.92924976349,
                             x: 7.47775554657,
-                            z: 4.42735862732,
+                            z: 4.42735910416,
                         },
                     up:
                         {
-                            y: 0.169707745314,
-                            x: -0.38657578826,
+                            y: 0.169707730412,
+                            x: -0.386575728655,
                             z: 0.906508982182,
                         },
                 },

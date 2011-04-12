@@ -77,25 +77,26 @@ def translate_material(mat):
         'type': 'material',
         'id': mat.id
     }
-    if not _rgb_attribute(jsmaterial, 'baseColor', mat.diffuse):
+    print mat
+    if not _rgb_attribute(jsmaterial, 'baseColor', mat.effect.diffuse):
         _rgb_attribute(jsmaterial, 'baseColor', (0.5,0.5,0.5))
-        if type(mat.diffuse) is collada.material.Map:
+        if type(mat.effect.diffuse) is collada.material.Map:
             print "TODO: BUSY HERE (create a texture)"
             # Create texture
         elif _verbose:
-            print "Unknown diffuse input: " + str(mat.diffuse)
-    if not _rgb_attribute(jsmaterial, 'specularColor', mat.specular):
+            print "Unknown diffuse input: " + str(mat.effect.diffuse)
+    if not _rgb_attribute(jsmaterial, 'specularColor', mat.effect.specular):
         if _verbose:
-            print "Unknown specular input: " + str(mat.specular)
-    if not _float_attribute(jsmaterial, 'shine', mat.shininess):
+            print "Unknown specular input: " + str(mat.effect.specular)
+    if not _float_attribute(jsmaterial, 'shine', mat.effect.shininess):
         if _verbose:
-            print "Unknown shininess input: " + str(mat.shininess)
-    if not _float_attribute(jsmaterial, 'alpha', mat.transparency):
+            print "Unknown shininess input: " + str(mat.effect.shininess)
+    if not _float_attribute(jsmaterial, 'alpha', mat.effect.transparency):
         if _verbose:
-            print "Unknown transparency input: " + str(mat.transparency)
-    if mat.emission and type(mat.emission) is tuple:
-        jsmaterial['emit'] = (mat.emission[0] + mat.emission[1] + mat.emission[2]) / 3.0
-    # TODO: not yet supported 'reflect': mat.reflective...
+            print "Unknown transparency input: " + str(mat.effect.transparency)
+    if mat.effect.emission and type(mat.effect.emission) is tuple:
+        jsmaterial['emit'] = (mat.effect.emission[0] + mat.effect.emission[1] + mat.effect.emission[2]) / 3.0
+    # TODO: not yet supported 'reflect': mat.effect.reflective...
     return jsmaterial
 
 """
@@ -140,7 +141,7 @@ def translate_geometry(geom):
         c_subgeom += 1
 
         if type(prim) is collada.triangleset.TriangleSet \
-              or type(prim) is collada.polylist.PolygonList \
+              or type(prim) is collada.polylist.Polylist \
               or type(prim) is collada.lineset.LineSet:
 
             jssubgeom['primitive'] = 'lines' if type(prim) is collada.lineset.LineSet else 'triangles'
@@ -188,7 +189,7 @@ def translate_geometry(geom):
                 polyindex = (array([3 * x, 3 * x + 3]) for x in range(0, prim.ntriangles))
             elif type(prim) is collada.lineset.LineSet:
                 polyindex = (array([2 * x, 2 * x + 2]) for x in range(0, prim.nlines))
-            elif type(prim) is collada.polylist.PolygonList:
+            elif type(prim) is collada.polylist.Polylist:
                 polyindex = prim.polyindex
 
             # Ensure that the index is always correctly shaped
@@ -318,26 +319,26 @@ def _translate_scene_nodes(nodes):
                 #jsnodes.append({ 'type': 'instance', 'target': node.materials[0].target.id, 'nodes': [ jsgeometry_instance ] })
             else:
                 jsnodes.append(jsgeometry_instance)
-        elif type(node) is collada.scene.TransformNode:
-            if node.nodes:
-                jschild_nodes = _translate_scene_nodes(node.nodes)
-                # Don't append the transform node unless it has children (isolated transform nodes are redundant)
-                if jschild_nodes:
-                    # Matrices from COLLADA are transposed
-                    elems = [float(element) for row in node.matrix.transpose() for element in row]
-                    # Light nodes should always be placed first in the list (because they are activated in order)
-                    if contains_light_nodes(jschild_nodes):
-                        jsnodes.insert(0, { 
-                            'type': 'matrix', 
-                            'elements': elems,
-                            'nodes': jschild_nodes
-                        })
-                    else:
-                        jsnodes.append({ 
-                            'type': 'matrix', 
-                            'elements': elems,
-                            'nodes': jschild_nodes
-                        })
+        #elif type(node) is collada.scene.TransformNode:
+        #    if node.nodes:
+        #        jschild_nodes = _translate_scene_nodes(node.nodes)
+        #        # Don't append the transform node unless it has children (isolated transform nodes are redundant)
+        #        if jschild_nodes:
+        #            # Matrices from COLLADA are transposed
+        #            elems = [float(element) for row in node.matrix.transpose() for element in row]
+        #            # Light nodes should always be placed first in the list (because they are activated in order)
+        #            if contains_light_nodes(jschild_nodes):
+        #                jsnodes.insert(0, { 
+        #                    'type': 'matrix', 
+        #                    'elements': elems,
+        #                    'nodes': jschild_nodes
+        #                })
+        #            else:
+        #                jsnodes.append({ 
+        #                    'type': 'matrix', 
+        #                    'elements': elems,
+        #                    'nodes': jschild_nodes
+        #                })
         elif type(node) is collada.scene.ControllerNode:
             print "Controller Node!"
         elif type(node) is collada.scene.CameraNode:
@@ -381,8 +382,29 @@ def _translate_scene_nodes(nodes):
                 jsnodes.insert(0, jslight)
         elif type(node) is collada.scene.ExtraNode:
             print "Extra Node!"
+        elif type(node) is collada.scene.Node:
+            # An unspecialized node is assumed to just contain a transformation matrix
+            if node.children:
+                jschild_nodes = _translate_scene_nodes(node.children)
+                # Don't append the transform node unless it has children (isolated transform nodes are redundant)
+                if jschild_nodes:
+                    # Matrices from COLLADA are transposed
+                    elems = [float(element) for row in node.matrix.transpose() for element in row]
+                    # Light nodes should always be placed first in the list (because they are activated in order)
+                    if contains_light_nodes(jschild_nodes):
+                        jsnodes.insert(0, { 
+                            'type': 'matrix', 
+                            'elements': elems,
+                            'nodes': jschild_nodes
+                        })
+                    else:
+                        jsnodes.append({ 
+                            'type': 'matrix', 
+                            'elements': elems,
+                            'nodes': jschild_nodes
+                        })
         else:
-            print "Unknown node"
+            print "Unknown node \'" + str(type(node)) + "\'"
     return jsnodes
 
 def translate_camera(camera):

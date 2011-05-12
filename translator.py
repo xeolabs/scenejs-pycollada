@@ -51,16 +51,65 @@ def translate(output_stream, collada_obj, debug = False, verbose = False):
 
 # Helpers
 def _float_attribute(jsnode, key, val):
-  if not val or type(val) is not float:
-    return False
-  jsnode[key] = val
-  return True
+    if not val or type(val) is not float:
+        return False
+    jsnode[key] = val
+    return True
 
 def _rgb_attribute(jsnode, key, val):
-  if not val or type(val) is not tuple:
-    return False
-  jsnode[key] = { 'r': val[0], 'g': val[1], 'b': val[2] }    
-  return True
+    if not val or type(val) is not tuple:
+        return False
+    jsnode[key] = { 'r': val[0], 'g': val[1], 'b': val[2] }    
+    return True
+
+def translate_material_map(material_map):
+    jslayer = {}
+
+    # Pre-conditions
+    if not material_map.sampler: return None
+    if not material_map.sampler.surface: return None
+    if not material_map.sampler.surface.image: return None
+    if not material_map.sampler.surface.image.path: return None
+
+    # TODO: Rewrite the texture urls using a regular path
+    jslayer['url'] = str(material_map.sampler.surface.image.path)
+
+    # TODO: Support other texture formats?
+    #if material_map.sampler.surface.format:
+    #    formats = {
+    #        'A8R8G8B8':
+    #    }
+    if material_map.sampler.minfilter:
+        filters = {
+            'NONE': 'nearest',
+            'NEAREST': 'nearest',
+            'LINEAR': 'linear',
+            'NEAREST_MIPMAP_NEAREST': 'nearestMipMapNearest',
+            'LINEAR_MIPMAP_NEAREST': 'linearMipMapNearest',
+            'NEAREST_MIPMAP_LINEAR': 'nearestMipMapLinear',
+            'LINEAR_MIPMAP_LINEAR': 'linearMipMapLinear'
+        }
+        try:
+            jslayer['minFilter'] = filters[material_map.sampler.minfilter.upper()]
+        except:
+            if _verbose: print "Could not assign value to min filter: " + str(material_map.sampler.minfilter)
+    if material_map.sampler.magfilter:
+        filters = {
+            'NONE': 'nearest',
+            'NEAREST': 'nearest',
+            'LINEAR': 'linear',
+            'NEAREST_MIPMAP_NEAREST': 'linear',
+            'LINEAR_MIPMAP_NEAREST': 'linear',
+            'NEAREST_MIPMAP_LINEAR': 'linear',
+            'LINEAR_MIPMAP_LINEAR': 'linear'
+        }
+        try:
+            jslayer['magFilter'] = filters[material_map.sampler.magfilter.upper()]
+        except:
+            if _verbose: print "Could not assign value to mag filter: " + str(material_map.sampler.magfilter)
+    # TODO: material_map.sampler.wrapS is not yet supported by PyCollada
+    # TODO: material_map.sampler.wrapT is not yet supported by PyCollada
+    return jslayer
 
 def translate_material(mat):
     """
@@ -71,7 +120,8 @@ def translate_material(mat):
           An instance of the PyCollada Material class.
     """
     jstexture = {
-        'type': 'texture'
+        'type': 'texture',
+        'layers': []
     }
     jsmaterial = {
         'type': 'material',
@@ -81,22 +131,52 @@ def translate_material(mat):
     if not _rgb_attribute(jsmaterial, 'baseColor', mat.effect.diffuse):
         _rgb_attribute(jsmaterial, 'baseColor', (0.5,0.5,0.5))
         if type(mat.effect.diffuse) is collada.material.Map:
-            print "TODO: BUSY HERE (create a texture)"
-            # Create texture
-        elif _verbose:
+            # Create a texture layer for the diffuse map
+            jslayer = translate_material_map(mat.effect.diffuse)
+            if jslayer:
+                jslayer['applyTo'] = 'baseColor'
+                jstexture['layers'].append(jslayer)
+        elif _verbose and mat.effect.diffuse:
             print "Unknown diffuse input: " + str(mat.effect.diffuse)
     if not _rgb_attribute(jsmaterial, 'specularColor', mat.effect.specular):
-        if _verbose:
+        if type(mat.effect.specular) is collada.material.Map:
+            # Create a texture layer for the specular map
+            jslayer = translate_material_map(mat.effect.specular)
+            if jslayer:
+                jslayer['applyTo'] = 'specular'
+                jstexture['layers'].append(jslayer)
+        elif _verbose and mat.effect.specular:
             print "Unknown specular input: " + str(mat.effect.specular)
     if not _float_attribute(jsmaterial, 'shine', mat.effect.shininess):
-        if _verbose:
+        if _verbose and mat.effect.shininess:
             print "Unknown shininess input: " + str(mat.effect.shininess)
     if not _float_attribute(jsmaterial, 'alpha', mat.effect.transparency):
-        if _verbose:
-            print "Unknown transparency input: " + str(mat.effect.transparency)
+        if type(mat.effect.transparency) is collada.material.Map:
+            # Create a texture layer for the alpha map
+            jslayer = translate_material_map(mat.effect.transparency)
+            if jslayer:
+                jslayer['applyTo'] = 'alpha'
+                jstexture['layers'].append(jslayer)
+        elif _verbose and mat.effect.transparency:
+            print "Unknown alpha input: " + str(mat.effect.transparency)
     if mat.effect.emission and type(mat.effect.emission) is tuple:
         jsmaterial['emit'] = (mat.effect.emission[0] + mat.effect.emission[1] + mat.effect.emission[2]) / 3.0
+    else:
+        if type(mat.effect.emission) is collada.material.Map:
+            # Create a texture layer for the emission map
+            jslayer = translate_material_map(mat.effect.emission)
+            if jslayer:
+                jslayer['applyTo'] = 'emit'
+                jstexture['layers'].append(jslayer)
+        elif _verbose and mat.effect.emission:
+            print "Unknown emit input: " + str(mat.effect.emission)
     # TODO: not yet supported 'reflect': mat.effect.reflective...
+    # TODO: normal maps not yet supported
+
+    # Add the texture to the material if suitable
+    if jstexture['layers']:
+        jsmaterial['nodes'] = jstexture
+    
     return jsmaterial
 
 """

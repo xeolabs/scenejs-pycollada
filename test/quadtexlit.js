@@ -15,6 +15,16 @@ SceneJS.createNode({
                     b: 0.25,
                     g: 0.25,
                 },
+            nodes:
+                {
+                    layers: [
+                        {
+                            url: 'projects/active/development/programs/scenejs-pycollada/test/tex.jpg',
+                            applyTo: 'baseColor',
+                        },
+                    ],
+                    type: 'texture',
+                },
             type: 'material',
             emit: 0.0,
         },

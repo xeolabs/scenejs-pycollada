@@ -133,12 +133,12 @@ def main(argv):
         serializer = output_format(output_stream)
         #TODO: serializer.tabstring = ' ' * tabsize if tabsize else "    "
         translate(serializer, collada_obj, debug, verbose)
-
+    
         if html_output_stream and embed_in_html:
            html_output_stream.write("</script>\n\n")
     
     output_stream.flush()
-
+    
     if html_output_stream and len(scene_ids) > 0:
         # Todo: support multiple scenes in a sample file... (via a html drop-down)
         html_output_stream.write(generate_html_body(scene_ids[0] if not libraries_only else None))

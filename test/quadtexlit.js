@@ -1,49 +1,6 @@
 SceneJS.createNode({
     nodes: [
         {
-            shine: 12.0,
-            baseColor:
-                {
-                    r: 0.5,
-                    b: 0.5,
-                    g: 0.5,
-                },
-            id: 'Plain',
-            specularColor:
-                {
-                    r: 0.25,
-                    b: 0.25,
-                    g: 0.25,
-                },
-            nodes:
-                {
-                    layers: [
-                        {
-                            url: 'projects/active/development/programs/scenejs-pycollada/test/tex.jpg',
-                            applyTo: 'baseColor',
-                        },
-                    ],
-                    type: 'texture',
-                },
-            type: 'material',
-            emit: 0.0,
-        },
-        {
-            primitive: 'triangles',
-            resource: 'Cube_007-mesh',
-            positions: [1.0,1.0,-1.0,1.0,-1.0,-1.0,1.0,1.0,1.0,1.0,-1.0,1.0,],
-            uv: [1.0,0.0,0.0,0.0,1.0,1.0,0.0,1.0,],
-            normals: [1.0,0.0,0.0,1.0,0.0,0.0,1.0,0.0,0.0,1.0,0.0,0.0,],
-            indices: [0,2,3,0,3,1,],
-            type: 'geometry',
-            id: 'Cube_007-mesh',
-        },
-    ],
-    type: 'library',
-});
-SceneJS.createNode({
-    nodes: [
-        {
             clear:
                 {
                     color: true, 
@@ -132,13 +89,13 @@ SceneJS.createNode({
                     look:
                         {
                             y: -7.92924976349,
-                            x: 7.47775554657,
+                            x: 7.47775602341,
                             z: 4.42735910416,
                         },
                     up:
                         {
                             y: 0.169707730412,
-                            x: -0.386575728655,
+                            x: -0.386575758457,
                             z: 0.906508982182,
                         },
                 },
@@ -156,4 +113,48 @@ SceneJS.createNode({
     canvasId: 'scenejsCanvas',
     type: 'scene',
     id: 'Scene',
+});
+SceneJS.createNode({
+    nodes: [
+        {
+            shine: 12.0,
+            baseColor:
+                {
+                    r: 0.5,
+                    b: 0.5,
+                    g: 0.5,
+                },
+            id: 'Plain',
+            specularColor:
+                {
+                    r: 0.25,
+                    b: 0.25,
+                    g: 0.25,
+                },
+            nodes:
+                {
+                    layers: [
+                        {
+                            url: 'projects/active/development/programs/scenejs-pycollada/test/tex.jpg',
+                            applyTo: 'baseColor',
+                        },
+                    ],
+                    type: 'texture',
+                },
+            type: 'material',
+            emit: 0.0,
+        },
+        {
+            primitive: 'triangles',
+            resource: 'Cube_007-mesh',
+            positions: [1.0,1.0,-1.0,1.0,-1.0,-1.0,1.0,1.0,1.0,1.0,-1.0,1.0,],
+            uv: [1.0,0.0,0.0,0.0,1.0,1.0,0.0,1.0,],
+            normals: [1.0,0.0,0.0,1.0,0.0,0.0,1.0,0.0,0.0,1.0,0.0,0.0,],
+            indices: [0,2,3,0,3,1,],
+            type: 'geometry',
+            id: 'Cube_007-mesh',
+        },
+    ],
+    type: 'library',
+    parent: 'Scene',
 });

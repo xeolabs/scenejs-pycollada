@@ -1,31 +1,6 @@
 SceneJS.createNode({
     nodes: [
         {
-            baseColor:
-                {
-                    r: 0.64,
-                    b: 0.64,
-                    g: 0.64,
-                },
-            type: 'material',
-            id: 'Material',
-            emit: 0.0,
-        },
-        {
-            primitive: 'triangles',
-            resource: 'Cube-mesh',
-            positions: [1.0,1.0,-1.0,1.0,-1.0,-1.0,1.0,0.999999523163,1.0,0.999999403954,-1.00000095367,1.0,],
-            normals: [1.0,-2.8312200584e-07,0.0,1.0,-2.8312200584e-07,0.0,1.0,-2.8312200584e-07,0.0,1.0,-2.8312200584e-07,0.0,],
-            indices: [0,2,3,0,3,1,],
-            type: 'geometry',
-            id: 'Cube-mesh',
-        },
-    ],
-    type: 'library',
-});
-SceneJS.createNode({
-    nodes: [
-        {
             clear:
                 {
                     color: true, 
@@ -106,4 +81,30 @@ SceneJS.createNode({
     canvasId: 'scenejsCanvas',
     type: 'scene',
     id: 'Scene',
+});
+SceneJS.createNode({
+    nodes: [
+        {
+            baseColor:
+                {
+                    r: 0.64,
+                    b: 0.64,
+                    g: 0.64,
+                },
+            type: 'material',
+            id: 'Material',
+            emit: 0.0,
+        },
+        {
+            primitive: 'triangles',
+            resource: 'Cube-mesh',
+            positions: [1.0,1.0,-1.0,1.0,-1.0,-1.0,1.0,0.999999523163,1.0,0.999999403954,-1.00000095367,1.0,],
+            normals: [1.0,-2.8312200584e-07,0.0,1.0,-2.8312200584e-07,0.0,1.0,-2.8312200584e-07,0.0,1.0,-2.8312200584e-07,0.0,],
+            indices: [0,2,3,0,3,1,],
+            type: 'geometry',
+            id: 'Cube-mesh',
+        },
+    ],
+    type: 'library',
+    parent: 'Scene',
 });

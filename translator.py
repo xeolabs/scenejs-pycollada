@@ -22,7 +22,7 @@ def translate(output_stream, collada_obj, debug = False, verbose = False):
     _debug, _verbose = debug, verbose
 
     # Export libraries
-    lib = { 'type': 'library', 'nodes': [] }
+    jslib = { 'type': 'library', 'nodes': [] }
 
     if _debug:
         print "Exporting libraries..."
@@ -31,23 +31,28 @@ def translate(output_stream, collada_obj, debug = False, verbose = False):
            print "Exporting material '" + mat.id + "'..."
         jsmat = translate_material(mat)
         if jsmat:
-            lib['nodes'].append(jsmat)
+            jslib['nodes'].append(jsmat)
     for geom in collada_obj.geometries:
         if _debug:
             print "Exporting geometry '" + geom.id + "'..."
         jsgeom = translate_geometry(geom)
         if jsgeom:
-            lib['nodes'].append(jsgeom)
-
-    output_stream.write(lib)
+            jslib['nodes'].append(jsgeom)
 
     # Export scenes
     for scene in [collada_obj.scene]:
         if _debug:
             print "Exporting scene '" + scene.id + "'..."
+
         jsscene = translate_scene(scene)
         if jsscene:
+            # Output the scene itself
             output_stream.write(jsscene)
+
+            # Link the library node to the current scene
+            if jsscene['id']:
+              jslib['parent'] = jsscene['id']
+            output_stream.write(jslib)
 
 # Helpers
 def _float_attribute(jsnode, key, val):

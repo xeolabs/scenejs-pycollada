@@ -132,7 +132,6 @@ def translate_material(mat):
         'type': 'material',
         'id': mat.id
     }
-    print mat
     if not _rgb_attribute(jsmaterial, 'baseColor', mat.effect.diffuse):
         _rgb_attribute(jsmaterial, 'baseColor', (0.5,0.5,0.5))
         if type(mat.effect.diffuse) is collada.material.Map:
@@ -280,8 +279,9 @@ def translate_geometry(geom):
             # Ensure that the index is always correctly shaped
             primindex = None
             if type(prim) is collada.lineset.LineSet or type(prim) is collada.triangleset.TriangleSet:
+                ninputs = prim.index.shape[2]
                 primindex = prim.index.copy()
-                primindex.resize((len(prim.index.flat)/2, 2))
+                primindex.resize((len(prim.index.flat)/ninputs, ninputs))
             else:
                 primindex = prim.index
 

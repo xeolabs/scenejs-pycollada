@@ -248,7 +248,8 @@ def translate_geometry(geom):
 
             # Initialize the index mapping table for vertex attributes
             # Possibly use len(prim.texcoordset) to determine number for texture coordinate sets
-            num_index_elems = 1 + (1 if prim.normal != None else 0) + (1 if prim.texcoordset != () else 0)
+            #num_index_elems = 1 + (1 if prim.normal != None else 0) + (1 if prim.texcoordset != () else 0)
+            num_index_elems = prim.index.shape[1]
             index_map = array([[-1] * num_index_elems] * len(prim.vertex))
             use_index_map = (prim.normal != None or (prim.texcoordset != None and len(prim.texcoordset) > 0))
             
@@ -319,7 +320,7 @@ def translate_geometry(geom):
                         elif index_map[vert_index][0] == -1:
                             # Replace the [-1] entry with the correct attribute indexes
                             #index_map[vert_index] = (pack_indices(norm_index, texcoord_indexset), -1)
-
+                            
                             index_map[vert_index][:-1] = attr_indexes[1:]
                             if prim.sources['NORMAL']:
                                 jsgeom['normals'][vert_index*3:vert_index*3+3] = [float(n) for n in prim.normal[attr_indexes[prim.sources['NORMAL'][0][0]]]]

@@ -1,6 +1,6 @@
 *.pyc
 *.swp
-*.dae
+#*.dae
 *.json
 *.js
 *.html

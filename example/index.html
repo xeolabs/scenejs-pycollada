@@ -1,0 +1,34 @@
+<!doctype html>
+<html>
+<!--
+      SceneJS sample
+-->
+<head>
+    <meta charset='utf-8'>
+    <!-- Use Chrome Frame in Internet Explorer if it is available (this functionality can be placed in the .htaccess file instead if desired) -->
+    <meta http-equiv='X-UA-Compatible' content='IE=edge,chrome=1'>
+
+    <title>SceneJS sample</title>
+
+    <!-- Framework -->
+
+    <!--<script type='text/javascript' src='scenejs.min.js'></script>-->
+    <script type='text/javascript' src='scenejs.js'></script>
+
+</head>
+<body>
+    <div id='scenejsLog'></div>
+    <div id='content'>
+        <canvas id='scenejsCanvas' width='1030' height='700'>
+            <p>This application requires a browser that supports the<a href='http://www.w3.org/html/wg/html5/'>HTML5</a>&lt;canvas&gt; feature.</p>
+        </canvas>
+    </div>
+
+    <!-- Resources -->
+
+    <script type='text/javascript' src='urban.js'></script>
+    <script type='text/javascript'>
+        SceneJS.withNode('Scene').render();
+    </script>
+</body>
+</html>

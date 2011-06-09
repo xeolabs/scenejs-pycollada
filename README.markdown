@@ -69,7 +69,7 @@ scenejs-pycollada is not installable currently, however you can simply run it di
 
 This command will give you the usage information you need to run the utility:
 
-    python scenejs-pycollada --help
+    python scenejs-pycollada.py --help
 
 
 Resources

@@ -249,7 +249,12 @@ def translate_geometry(geom):
             # Initialize the index mapping table for vertex attributes
             # Possibly use len(prim.texcoordset) to determine number for texture coordinate sets
             #num_index_elems = 1 + (1 if prim.normal != None else 0) + (1 if prim.texcoordset != () else 0)
-            num_index_elems = prim.index.shape[1]
+
+            # Note that the number of indices stored per vertex is the last dimension of the prim.index.shape
+            # E.g. For a polylist the prim.index looks like [[0,1],[3,4]] but for triangles the prim.index
+            #      looks like [[[0,1],[2,3],[4,5]], [[6,7],[8,9],[10,11]]] 
+            #      (So the shape of the index may vary)
+            num_index_elems = prim.index.shape[len(prim.index.shape)-1]
             index_map = array([[-1] * num_index_elems] * len(prim.vertex))
             use_index_map = (prim.normal != None or (prim.texcoordset != None and len(prim.texcoordset) > 0))
             
@@ -280,9 +285,8 @@ def translate_geometry(geom):
             # Ensure that the index is always correctly shaped
             primindex = None
             if type(prim) is collada.lineset.LineSet or type(prim) is collada.triangleset.TriangleSet:
-                ninputs = prim.index.shape[2]
                 primindex = prim.index.copy()
-                primindex.resize((len(prim.index.flat)/ninputs, ninputs))
+                primindex.resize((len(prim.index.flat)/num_index_elems, num_index_elems))
             else:
                 primindex = prim.index
 

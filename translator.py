@@ -562,7 +562,7 @@ def translate_scene(scene):
 
     #jscamera['nodes'][0]['nodes'] = _translate_scene_nodes(scene.nodes)
     jsrenderer['nodes'] = _translate_scene_nodes(scene.nodes)
-    jscamera['nodes'][0]['nodes'] = jsrenderer
+    jscamera['nodes'][0]['nodes'] = [jsrenderer]
     
     return {
         'type': 'scene',
@@ -572,18 +572,6 @@ def translate_scene(scene):
         'flags': {
                 'backfaces': False
             },
-        'nodes': [
-#         {
-#            'type': 'renderer',
-#            'clear': {
-#                'depth': True,
-#                'color': True,
-#                'stencil': False
-#            },
-#            'clearColor': { 'r': 0.4, 'g': 0.4, 'b': 0.4 },
-#            'nodes': [ jscamera ]
-#        }]
-             jscamera
-         ]
+        'nodes': [jscamera]
     }
 

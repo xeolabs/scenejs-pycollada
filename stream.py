@@ -107,10 +107,31 @@ class ScenejsPrettyJavascriptStream:
           indent
             The indentation level
         """
-        # TODO: This function should also order the keys in a logical way...
+        # First output 'type', 'id' and 'coreId'
+        specialKeys = ['type', 'id', 'coreId', 'nodes']
+        specialValues = { 'type': None, 'id': None, 'coreId': None, 'nodes': None }
+        otherValues = []
+
         for k,v in node.items():
+            if k in specialKeys:
+                specialValues[k] = v
+            else:
+                otherValues.append((k,v))
+
+        for k in specialKeys[:-1]:
+            if specialValues[k]:
+                yield "    " * indent + k + ": " + self._pretty_print_value(specialValues[k], indent) + "\n"
+
+        # Output all other keys
+        for k,v in node.items():
+            if k in specialKeys:
+                continue
             output = "    " * indent + k + (":\n" if isinstance(v,dict) else ": ")
             yield output + self._pretty_print_value(v, indent) + "\n"
+
+        # Output the 'nodes' key last
+        if specialValues['nodes']:
+            yield "    " * indent + "nodes: " + self._pretty_print_value(specialValues['nodes'], indent) + "\n"
     
     def write(self, node):
         """Create a Javascript output stream, where nodes are automatically created via SceneJS.createScene

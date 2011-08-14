@@ -42,14 +42,14 @@ class ScenejsJavascriptStream:
         self.streamobj = streamobj
 
     def write(self, node):
-        """Create a Javascript output stream, where nodes are automatically created via SceneJS.createNode
+        """Create a Javascript output stream, where nodes are automatically created via SceneJS.createScene
 
         :Parameters:
           streamobj
             A file, string IO or network socket object
         """
         try:
-            self.streamobj.write("SceneJS.createNode(" + json.dumps(node) + ");\n")
+            self.streamobj.write("SceneJS.createScene(" + json.dumps(node) + ");\n")
         except TypeError as e:
             print "ERROR: " + str(e)
 
@@ -113,7 +113,7 @@ class ScenejsPrettyJavascriptStream:
             yield output + self._pretty_print_value(v, indent) + "\n"
     
     def write(self, node):
-        """Create a Javascript output stream, where nodes are automatically created via SceneJS.createNode
+        """Create a Javascript output stream, where nodes are automatically created via SceneJS.createScene
 
         :Parameters:
           streamobj
@@ -121,7 +121,7 @@ class ScenejsPrettyJavascriptStream:
           node
             A dictionary object containing the scene data
         """
-        self.streamobj.write("SceneJS.createNode({\n")
+        self.streamobj.write("SceneJS.createScene({\n")
         for s in self._pretty_print(node, 1):
             self.streamobj.write(s)
         self.streamobj.write("});\n")
@@ -146,7 +146,7 @@ class ScenejsBinaryStream:
         self.streamobj = streamobj
 
     def write(self, node):
-        """Create several binary output streams, where nodes are automatically created via SceneJS.createNode
+        """Create several binary output streams
 
         :Parameters:
           streamobj

@@ -46,13 +46,11 @@ def translate(output_stream, collada_obj, debug = False, verbose = False):
 
         jsscene = translate_scene(scene)
         if jsscene:
-            # Output the scene itself
-            output_stream.write(jsscene)
+            # Link the library node to the current scene (as a core library)
+            jsscene['nodes'].insert(0, jslib)
 
-            # Link the library node to the current scene
-            if jsscene['id']:
-              jslib['parent'] = jsscene['id']
-            output_stream.write(jslib)
+            # Output the scene
+            output_stream.write(jsscene)
 
 # Helpers
 def _float_attribute(jsnode, key, val):
@@ -130,7 +128,7 @@ def translate_material(mat):
     }
     jsmaterial = {
         'type': 'material',
-        'id': mat.id
+        'coreId': mat.id
     }
     if not _rgb_attribute(jsmaterial, 'baseColor', mat.effect.diffuse):
         _rgb_attribute(jsmaterial, 'baseColor', (0.5,0.5,0.5))
@@ -204,7 +202,7 @@ def translate_geometry(geom):
     """
     jsgeom = {
         'type': 'geometry',
-        'id': geom.id,
+        'coreId': geom.id,
         'resource': geom.id,
     }
     
@@ -218,7 +216,7 @@ def translate_geometry(geom):
         # TODO: support other primitive types (<polygons>, <trifans>, <tristrips>, <linestrips>)
         jssubgeom = {
             'type': 'geometry',
-            'id': geom.id + str(c_subgeom),
+            'coreId': geom.id + str(c_subgeom),
             'resource': geom.id,
             'indices': []
         }
@@ -400,13 +398,15 @@ def _translate_scene_nodes(nodes):
         if type(node) is collada.scene.GeometryNode:
             if _verbose and len(node.materials) > 1:
                 print "Warning: Geometry '" + node.geometry.id + "' has more than one material - only the first is currently used"
-            jsgeometry_instance = { 'type': 'instance', 'target': node.geometry.id }
+            jsgeometry_instance = { 'type': 'geometry', 'coreId': node.geometry.id }
             if len(node.materials) > 0:
                 jsmaterial = translate_material(node.materials[0].target)
-                jsmaterial['id'] = node.geometry.id + '-' + jsmaterial['id']
+                jsmaterial['id'] = node.geometry.id + '-' + jsmaterial['coreId']
                 jsmaterial['nodes'] = [ jsgeometry_instance ]
                 jsnodes.append(jsmaterial)
                 #jsnodes.append({ 'type': 'instance', 'target': node.materials[0].target.id, 'nodes': [ jsgeometry_instance ] })
+
+                # TODO: change this to a coreId material
             else:
                 jsnodes.append(jsgeometry_instance)
         #elif type(node) is collada.scene.TransformNode:
@@ -548,22 +548,42 @@ def translate_scene(scene):
                 'nodes': []
             }]
         }
-    jscamera['nodes'][0]['nodes'] = _translate_scene_nodes(scene.nodes)
+
+    jsrenderer = {
+        'type': 'renderer',
+        'clear': {
+            'depth': True,
+            'color': True,
+            'stencil': False
+        },
+        'clearColor': { 'r': 0.4, 'g': 0.4, 'b': 0.4 },
+        'nodes': []
+    }
+
+    #jscamera['nodes'][0]['nodes'] = _translate_scene_nodes(scene.nodes)
+    jsrenderer['nodes'] = _translate_scene_nodes(scene.nodes)
+    jscamera['nodes'][0]['nodes'] = jsrenderer
     
     return {
         'type': 'scene',
         'id': scene.id,
         'canvasId': 'scenejsCanvas',
         'loggingElementId': 'scenejsLog',
-        'nodes': [{
-            'type': 'renderer',
-            'clear': {
-                'depth': True,
-                'color': True,
-                'stencil': False
+        'flags': {
+                'backfaces': False
             },
-            'clearColor': { 'r': 0.4, 'g': 0.4, 'b': 0.4 },
-            'nodes': [ jscamera ]
-        }]
+        'nodes': [
+#         {
+#            'type': 'renderer',
+#            'clear': {
+#                'depth': True,
+#                'color': True,
+#                'stencil': False
+#            },
+#            'clearColor': { 'r': 0.4, 'g': 0.4, 'b': 0.4 },
+#            'nodes': [ jscamera ]
+#        }]
+             jscamera
+         ]
     }
 

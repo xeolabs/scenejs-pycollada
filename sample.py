@@ -36,7 +36,7 @@ def generate_html_head(title, detailed=False):
 def generate_html_body(sceneId=None):
     return "\
     <script type='text/javascript'>\n" + ("\
-        SceneJS.createNode({\n\
+        SceneJS.createScene({\n\
             type: 'scene',\n\
             id: 'sampleScene',\n\
             canvasId: 'scenejsCanvas',\n\
@@ -45,7 +45,7 @@ def generate_html_body(sceneId=None):
                 // Add your nodes here...\n\
             ]\n\
         });\n" if not sceneId else "") + "\
-        SceneJS.withNode('" + (sceneId if sceneId else "sampleScene") + "').render();\n\
+        SceneJS.scene('" + (sceneId if sceneId else "sampleScene") + "').start();\n\
     </script>\n\
 </body>\n\
 </html>"

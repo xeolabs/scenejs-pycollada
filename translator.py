@@ -485,6 +485,7 @@ def _translate_scene_nodes(nodes):
                         jsnodes.insert(0, { 
                             'type': 'matrix', 
                             'elements': elems,
+                            #'multOrder': 'post',
                             'nodes': jschild_nodes
                         })
                     else:

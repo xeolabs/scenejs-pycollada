@@ -203,7 +203,6 @@ def translate_geometry(geom):
     jsgeom = {
         'type': 'geometry',
         'coreId': geom.id,
-        'resource': geom.id,
     }
     
     # TODO: Point geometry is not currently supported due to the limitations of the Collada format (also see the notes lower down in this function)
@@ -217,7 +216,6 @@ def translate_geometry(geom):
         jssubgeom = {
             'type': 'geometry',
             'coreId': geom.id + str(c_subgeom),
-            'resource': geom.id,
             'indices': []
         }
         c_subgeom += 1

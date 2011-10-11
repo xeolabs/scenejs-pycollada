@@ -404,6 +404,7 @@ def _translate_scene_nodes(nodes):
                 jsgeometry_instance = { 'type': 'geometry', 'coreId': node.geometry.id }
                 jsnodes.append({ 'type': 'material', 'coreId': node.materials[0].target.id, 'nodes': [ jsgeometry_instance ] })
             else:
+                jsgeometry_instance = { 'type': 'geometry', 'coreId': node.geometry.id }
                 jsnodes.append(jsgeometry_instance)
         #elif type(node) is collada.scene.TransformNode:
         #    if node.nodes:

@@ -253,7 +253,7 @@ def translate_geometry(geom):
             num_index_elems = prim.index.shape[len(prim.index.shape)-1]
             index_map = array([[-1] * num_index_elems] * len(prim.vertex))
             use_index_map = (prim.normal != None or (prim.texcoordset != None and len(prim.texcoordset) > 0))
-            
+
             # Initialize jsgeom structure
             if not 'positions' in jsgeom:
                 jsgeom['positions'] = []
@@ -394,17 +394,15 @@ def _translate_scene_nodes(nodes):
     jsnodes = []
     for node in nodes:
         if type(node) is collada.scene.GeometryNode:
-            if _verbose and len(node.materials) > 1:
-                print "Warning: Geometry '" + node.geometry.id + "' has more than one material - only the first is currently used"
-            jsgeometry_instance = { 'type': 'geometry', 'coreId': node.geometry.id }
-            if len(node.materials) > 0:
-                jsmaterial = translate_material(node.materials[0].target)
-                jsmaterial['id'] = node.geometry.id + '-' + jsmaterial['coreId']
-                jsmaterial['nodes'] = [ jsgeometry_instance ]
-                jsnodes.append(jsmaterial)
-                #jsnodes.append({ 'type': 'instance', 'target': node.materials[0].target.id, 'nodes': [ jsgeometry_instance ] })
-
-                # TODO: change this to a coreId material
+            if len(node.materials) > 1:
+                jsgeometry_instance = { 'type': 'geometry', 'coreId': node.geometry.id, 'nodes': [] }
+                for i in range(0, len(node.materials)):
+                    jssubgeometry_instance = { 'type': 'geometry', 'coreId': node.geometry.id + str(i) }
+                    jsgeometry_instance['nodes'].append({ 'type': 'material', 'coreId': node.materials[i].target.id, 'nodes': [ jssubgeometry_instance ] })
+                jsnodes.append(jsgeometry_instance)
+            elif len(node.materials) == 1:
+                jsgeometry_instance = { 'type': 'geometry', 'coreId': node.geometry.id }
+                jsnodes.append({ 'type': 'material', 'coreId': node.materials[0].target.id, 'nodes': [ jsgeometry_instance ] })
             else:
                 jsnodes.append(jsgeometry_instance)
         #elif type(node) is collada.scene.TransformNode:

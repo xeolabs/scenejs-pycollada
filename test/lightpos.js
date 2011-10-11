@@ -26,7 +26,6 @@ SceneJS.createScene({
                     type: 'geometry',
                     coreId: 'Cube_003-mesh-mes_000-mesh',
                     primitive: 'triangles',
-                    resource: 'Cube_003-mesh-mes_000-mesh',
                     positions: [1.0,1.0,0.0,1.0,-1.0,0.0,-1.0,-1.0,0.0,-1.0,1.0,0.0,],
                     normals: [0.0,0.0,1.0,0.0,0.0,1.0,0.0,0.0,1.0,0.0,0.0,1.0,],
                     indices: [0,3,2,0,2,1,],
@@ -35,7 +34,6 @@ SceneJS.createScene({
                     type: 'geometry',
                     coreId: 'Cube_002-mesh-mes_000-mesh',
                     primitive: 'triangles',
-                    resource: 'Cube_002-mesh-mes_000-mesh',
                     positions: [1.0,1.0,0.0,1.0,-1.0,0.0,-1.0,-1.0,0.0,-1.0,1.0,0.0,],
                     normals: [0.0,0.0,1.0,0.0,0.0,1.0,0.0,0.0,1.0,0.0,0.0,1.0,],
                     indices: [0,3,2,0,2,1,],
@@ -44,7 +42,6 @@ SceneJS.createScene({
                     type: 'geometry',
                     coreId: 'Cube_001-mesh-mes_000-mesh',
                     primitive: 'triangles',
-                    resource: 'Cube_001-mesh-mes_000-mesh',
                     positions: [1.0,1.0,0.0,1.0,-1.0,0.0,-1.0,-1.0,0.0,-1.0,1.0,0.0,],
                     normals: [0.0,0.0,1.0,0.0,0.0,1.0,0.0,0.0,1.0,0.0,0.0,1.0,],
                     indices: [0,3,2,0,2,1,],
@@ -53,7 +50,6 @@ SceneJS.createScene({
                     type: 'geometry',
                     coreId: 'Cube-mesh-mesh_001-mesh',
                     primitive: 'triangles',
-                    resource: 'Cube-mesh-mesh_001-mesh',
                     positions: [1.0,1.0,0.0,1.0,-1.0,0.0,-1.0,-1.0,0.0,-1.0,1.0,0.0,],
                     normals: [0.0,0.0,1.0,0.0,0.0,1.0,0.0,0.0,1.0,0.0,0.0,1.0,],
                     indices: [0,3,2,0,2,1,],
@@ -138,15 +134,7 @@ SceneJS.createScene({
                                     nodes: [
                                         {
                                             type: 'material',
-                                            id: 'Cube_003-mesh-mes_000-mesh-Material_001_001',
                                             coreId: 'Material_001_001',
-                                            baseColor:
-                                                {
-                                                    r: 0.5,
-                                                    b: 0.5,
-                                                    g: 0.5,
-                                                },
-                                            emit: 0.0,
                                             nodes: [
                                                 {
                                                     type: 'geometry',
@@ -162,15 +150,7 @@ SceneJS.createScene({
                                     nodes: [
                                         {
                                             type: 'material',
-                                            id: 'Cube_002-mesh-mes_000-mesh-Material_001_001',
                                             coreId: 'Material_001_001',
-                                            baseColor:
-                                                {
-                                                    r: 0.5,
-                                                    b: 0.5,
-                                                    g: 0.5,
-                                                },
-                                            emit: 0.0,
                                             nodes: [
                                                 {
                                                     type: 'geometry',
@@ -186,15 +166,7 @@ SceneJS.createScene({
                                     nodes: [
                                         {
                                             type: 'material',
-                                            id: 'Cube_001-mesh-mes_000-mesh-Material_001_001',
                                             coreId: 'Material_001_001',
-                                            baseColor:
-                                                {
-                                                    r: 0.5,
-                                                    b: 0.5,
-                                                    g: 0.5,
-                                                },
-                                            emit: 0.0,
                                             nodes: [
                                                 {
                                                     type: 'geometry',
@@ -210,15 +182,7 @@ SceneJS.createScene({
                                     nodes: [
                                         {
                                             type: 'material',
-                                            id: 'Cube-mesh-mesh_001-mesh-Material_001_001',
                                             coreId: 'Material_001_001',
-                                            baseColor:
-                                                {
-                                                    r: 0.5,
-                                                    b: 0.5,
-                                                    g: 0.5,
-                                                },
-                                            emit: 0.0,
                                             nodes: [
                                                 {
                                                     type: 'geometry',

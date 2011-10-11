@@ -47,30 +47,26 @@ SceneJS.createScene({
                 {
                     type: 'geometry',
                     coreId: 'Cube-mesh',
-                    resource: 'Cube-mesh',
                     positions: [1.0,1.0,-1.0,1.0,-1.0,-1.0,-1.0,-0.999999821186,-1.0,1.0,0.999999523163,1.0,0.999999403954,-1.00000095367,1.0,-1.0,-0.999999701977,1.0,-1.0,1.0,1.0,1.0,1.0,-1.0,1.0,-1.0,-1.0,-1.0,-0.999999821186,-1.0,1.0,0.999999523163,1.0,0.999999403954,-1.00000095367,1.0,-1.0,-0.999999701977,1.0,-1.0,1.0,1.0,1.0,1.0,-1.0,1.0,-1.0,-1.0,-1.0,-0.999999821186,-1.0,1.0,0.999999523163,1.0,0.999999403954,-1.00000095367,1.0,-1.0,-0.999999701977,1.0,-1.0,1.0,1.0,],
                     normals: [1.0,-2.8312200584e-07,0.0,1.0,-2.8312200584e-07,0.0,-2.8312200584e-07,-1.0,0.0,0.0,0.0,1.0,0.0,0.0,1.0,0.0,0.0,1.0,0.0,0.0,1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,],
                     nodes: [
                         {
                             type: 'geometry',
                             coreId: 'Cube-mesh0',
-                            resource: 'Cube-mesh',
-                            primitive: 'triangles',
                             indices: [1,4,5,1,5,2,],
+                            primitive: 'triangles',
                         },
                         {
                             type: 'geometry',
                             coreId: 'Cube-mesh1',
-                            resource: 'Cube-mesh',
-                            primitive: 'triangles',
                             indices: [0,3,4,0,4,1,],
+                            primitive: 'triangles',
                         },
                         {
                             type: 'geometry',
                             coreId: 'Cube-mesh2',
-                            resource: 'Cube-mesh',
-                            primitive: 'triangles',
                             indices: [3,6,5,3,5,4,],
+                            primitive: 'triangles',
                         },
                     ],
                 },
@@ -153,20 +149,38 @@ SceneJS.createScene({
                                     elements: [1.0,0.0,0.0,0.0,0.0,1.0,0.0,0.0,0.0,0.0,1.0,0.0,0.0,0.0,0.0,1.0,],
                                     nodes: [
                                         {
-                                            type: 'material',
-                                            id: 'Cube-mesh-Red',
-                                            coreId: 'Red',
-                                            baseColor:
-                                                {
-                                                    r: 0.64,
-                                                    b: 0.0,
-                                                    g: 0.0,
-                                                },
-                                            emit: 0.0,
+                                            type: 'geometry',
+                                            coreId: 'Cube-mesh',
                                             nodes: [
                                                 {
-                                                    type: 'geometry',
-                                                    coreId: 'Cube-mesh',
+                                                    type: 'material',
+                                                    coreId: 'Red',
+                                                    nodes: [
+                                                        {
+                                                            type: 'geometry',
+                                                            coreId: 'Cube-mesh0',
+                                                        },
+                                                    ],
+                                                },
+                                                {
+                                                    type: 'material',
+                                                    coreId: 'Blue',
+                                                    nodes: [
+                                                        {
+                                                            type: 'geometry',
+                                                            coreId: 'Cube-mesh1',
+                                                        },
+                                                    ],
+                                                },
+                                                {
+                                                    type: 'material',
+                                                    coreId: 'Green',
+                                                    nodes: [
+                                                        {
+                                                            type: 'geometry',
+                                                            coreId: 'Cube-mesh2',
+                                                        },
+                                                    ],
                                                 },
                                             ],
                                         },

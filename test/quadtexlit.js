@@ -42,7 +42,6 @@ SceneJS.createScene({
                     type: 'geometry',
                     coreId: 'Cube_007-mesh',
                     primitive: 'triangles',
-                    resource: 'Cube_007-mesh',
                     positions: [1.0,1.0,-1.0,1.0,-1.0,-1.0,1.0,1.0,1.0,1.0,-1.0,1.0,],
                     uv: [1.0,0.0,0.0,0.0,1.0,1.0,0.0,1.0,],
                     normals: [1.0,0.0,0.0,1.0,0.0,0.0,1.0,0.0,0.0,1.0,0.0,0.0,],
@@ -128,22 +127,7 @@ SceneJS.createScene({
                                     nodes: [
                                         {
                                             type: 'material',
-                                            id: 'Cube_007-mesh-Plain',
                                             coreId: 'Plain',
-                                            shine: 12.0,
-                                            baseColor:
-                                                {
-                                                    r: 0.5,
-                                                    b: 0.5,
-                                                    g: 0.5,
-                                                },
-                                            specularColor:
-                                                {
-                                                    r: 0.25,
-                                                    b: 0.25,
-                                                    g: 0.25,
-                                                },
-                                            emit: 0.0,
                                             nodes: [
                                                 {
                                                     type: 'geometry',

@@ -26,7 +26,6 @@ SceneJS.createScene({
                     type: 'geometry',
                     coreId: 'Cube-mesh',
                     primitive: 'triangles',
-                    resource: 'Cube-mesh',
                     positions: [1.0,1.0,-1.0,1.0,-1.0,-1.0,1.0,0.999999523163,1.0,0.999999403954,-1.00000095367,1.0,],
                     normals: [1.0,-2.8312200584e-07,0.0,1.0,-2.8312200584e-07,0.0,1.0,-2.8312200584e-07,0.0,1.0,-2.8312200584e-07,0.0,],
                     indices: [0,2,3,0,3,1,],
@@ -86,15 +85,7 @@ SceneJS.createScene({
                                     nodes: [
                                         {
                                             type: 'material',
-                                            id: 'Cube-mesh-Material',
                                             coreId: 'Material',
-                                            baseColor:
-                                                {
-                                                    r: 0.64,
-                                                    b: 0.64,
-                                                    g: 0.64,
-                                                },
-                                            emit: 0.0,
                                             nodes: [
                                                 {
                                                     type: 'geometry',

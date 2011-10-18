@@ -15,13 +15,13 @@ Features
 ========
 
 * Loads the following geometry nodes: <polylist>, <triangles>, <lines>
-** However, it is still missing the following: <polygons>
+    * However, it is still missing the following: <polygons>
 * Supports vertex splitting when a shared vertex has conflicting attributes. (This is required for flat shading or split texture coordinates for example)
 * Import multiple primitive types in one mesh using subgeometries
 * Supports the following vertex attributes: 
-** Positions
-** Normals
-** Texture coordinates (one set only at the moment)
+    * Positions
+    * Normals
+    * Texture coordinates (one set only at the moment)
 * Loads the following light nodes: <point>, <directional>
 * Loads basic materials (no shaders yet)
 * Generates sample files (html + javascript)

@@ -132,7 +132,7 @@ def main(argv):
 
         serializer = output_format(output_stream)
         #TODO: serializer.tabstring = ' ' * tabsize if tabsize else "    "
-        translate(serializer, collada_obj, debug, verbose)
+        translate(serializer, collada_obj, { 'libraries_only': libraries_only }, debug, verbose)
     
         if html_output_stream and embed_in_html:
            html_output_stream.write("</script>\n\n")

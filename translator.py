@@ -7,7 +7,7 @@ import collada
 import sys
 from numpy import array, append, array_equal
 
-def translate(output_stream, collada_obj, debug = False, verbose = False):
+def translate(output_stream, collada_obj, options = {}, debug = False, verbose = False):
     """
       Translates a collada_obj given by PyCollada into SceneJS JSON and
       outputs the result to a stream.
@@ -39,18 +39,22 @@ def translate(output_stream, collada_obj, debug = False, verbose = False):
         if jsgeom:
             jslib['nodes'].append(jsgeom)
 
-    # Export scenes
-    for scene in [collada_obj.scene]:
-        if _debug:
-            print "Exporting scene '" + scene.id + "'..."
+    if options['libraries_only']:
+      # Export the library only
+      output_stream.write(jslib, options)
+    else:
+      # Export scenes
+      for scene in [collada_obj.scene]:
+          if _debug:
+              print "Exporting scene '" + scene.id + "'..."
 
-        jsscene = translate_scene(scene)
-        if jsscene:
-            # Link the library node to the current scene (as a core library)
-            jsscene['nodes'].insert(0, jslib)
+          jsscene = translate_scene(scene)
+          if jsscene:
+              # Link the library node to the current scene (as a core library)
+              jsscene['nodes'].insert(0, jslib)
 
-            # Output the scene
-            output_stream.write(jsscene)
+              # Output the scene
+              output_stream.write(jsscene, options)
 
 # Helpers
 def _float_attribute(jsnode, key, val):

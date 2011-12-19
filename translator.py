@@ -255,6 +255,8 @@ def translate_geometry(geom):
             #      looks like [[[0,1],[2,3],[4,5]], [[6,7],[8,9],[10,11]]] 
             #      (So the shape of the index may vary)
             num_index_elems = prim.index.shape[len(prim.index.shape)-1]
+            if prim.vertex is None:
+                continue
             index_map = array([[-1] * num_index_elems] * len(prim.vertex))
             use_index_map = (prim.normal != None or (prim.texcoordset != None and len(prim.texcoordset) > 0))
 
@@ -410,26 +412,6 @@ def _translate_scene_nodes(nodes):
             else:
                 jsgeometry_instance = { 'type': 'geometry', 'coreId': node.geometry.id }
                 jsnodes.append(jsgeometry_instance)
-        #elif type(node) is collada.scene.TransformNode:
-        #    if node.nodes:
-        #        jschild_nodes = _translate_scene_nodes(node.nodes)
-        #        # Don't append the transform node unless it has children (isolated transform nodes are redundant)
-        #        if jschild_nodes:
-        #            # Matrices from COLLADA are transposed
-        #            elems = [float(element) for row in node.matrix.transpose() for element in row]
-        #            # Light nodes should always be placed first in the list (because they are activated in order)
-        #            if contains_light_nodes(jschild_nodes):
-        #                jsnodes.insert(0, { 
-        #                    'type': 'matrix', 
-        #                    'elements': elems,
-        #                    'nodes': jschild_nodes
-        #                })
-        #            else:
-        #                jsnodes.append({ 
-        #                    'type': 'matrix', 
-        #                    'elements': elems,
-        #                    'nodes': jschild_nodes
-        #                })
         elif type(node) is collada.scene.ControllerNode:
             print "Controller Node!"
         elif type(node) is collada.scene.CameraNode:
@@ -441,7 +423,7 @@ def _translate_scene_nodes(nodes):
                 mode = 'ambient'
             elif type(node.light) is collada.light.PointLight or type(node.light) is collada.light.BoundPointLight:
                 mode = 'point'
-            elif type(node.light) is collada.light.SunLight or type(node.light) is collada.light.BoundSunLight:
+            elif type(node.light) is collada.light.DirectionalLight or type(node.light) is collada.light.BoundDirectionalLight:
                 mode = 'dir'
             elif _verbose:
                 print "Warning: Unknown light mode '" + type(node.light).__name__ + "'"
@@ -473,7 +455,9 @@ def _translate_scene_nodes(nodes):
                 jsnodes.insert(0, jslight)
         elif type(node) is collada.scene.ExtraNode:
             print "Extra Node!"
-        elif type(node) is collada.scene.Node:
+        elif type(node) in (collada.scene.Node, collada.scene.NodeNode):
+            if isinstance(node, collada.scene.NodeNode):
+                node = node.node
             # An unspecialized node is assumed to just contain a transformation matrix
             if node.children:
                 jschild_nodes = _translate_scene_nodes(node.children)
@@ -482,19 +466,15 @@ def _translate_scene_nodes(nodes):
                     # Matrices from COLLADA are transposed
                     elems = [float(element) for row in node.matrix.transpose() for element in row]
                     # Light nodes should always be placed first in the list (because they are activated in order)
+                    tnode = {
+                        'type': 'matrix',
+                        'elements': elems,
+                        'nodes': jschild_nodes
+                        }
                     if contains_light_nodes(jschild_nodes):
-                        jsnodes.insert(0, { 
-                            'type': 'matrix', 
-                            'elements': elems,
-                            #'multOrder': 'post',
-                            'nodes': jschild_nodes
-                        })
+                        jsnodes.insert(0, tnode)
                     else:
-                        jsnodes.append({ 
-                            'type': 'matrix', 
-                            'elements': elems,
-                            'nodes': jschild_nodes
-                        })
+                        jsnodes.append(tnode)
         else:
             print "Unknown node \'" + str(type(node)) + "\'"
     return jsnodes
@@ -512,10 +492,10 @@ def translate_camera(camera):
             'type': 'camera',
             'optics': {
                  'type': 'perspective', #TODO: type of camera can't be retrieved a.t.m. assuming "perspective" for now
-                 'fovy': float(camera.fov),
+                 'fovy': float(camera.yfov),
                  'aspect': 1.0, # TODO: aspect ratio is not currently available
-                 'near': float(camera.near),
-                 'far': float(camera.far)
+                 'near': float(camera.znear),
+                 'far': float(camera.zfar)
             }
         }]
     }
